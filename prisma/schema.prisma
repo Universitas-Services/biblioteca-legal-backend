@@ -1,0 +1,66 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ----------------------------------------------------
+// FASE 2: ESQUEMA DE USUARIOS Y ROLES
+// ----------------------------------------------------
+
+// Definimos los roles jerárquicos de la plataforma
+enum Role {
+  CLIENTE
+  CURADOR
+  REVISOR
+  AUDITOR
+  ADMIN
+}
+
+model User {
+  id        String     @id @default(uuid())
+  email     String     @unique
+  password  String     // Necesario para el AuthModule más adelante
+  role      Role       @default(CLIENTE)
+  
+  // Relaciones
+  auditLogs AuditLog[]
+}
+
+// ----------------------------------------------------
+// FASE 2: ESQUEMA DE DOCUMENTOS
+// ----------------------------------------------------
+
+model Documento {
+  id                 String   @id @default(uuid())
+  titulo             String
+  
+  // Optimización: Solo guardamos la ruta en GCS, nada de arrays de imágenes
+  archivoOriginalUrl String   
+  estado             String   @default("Pendiente de Revisión")
+  ultimaActualizacion DateTime @updatedAt
+  
+  // Relaciones
+  auditLogs          AuditLog[]
+}
+
+// ----------------------------------------------------
+// MEJORA FASE 1: MODELO DE AUDITORÍA
+// ----------------------------------------------------
+
+model AuditLog {
+  id          String   @id @default(uuid())
+  accion      String   // Ej: "Cambio a Derogada"
+  fecha       DateTime @default(now())
+
+  // Relación obligatoria con el Usuario que hizo la acción
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+
+  // Relación opcional con el Documento (por si la acción no es sobre un documento)
+  documentoId String?
+  documento   Documento? @relation(fields: [documentoId], references: [id])
+}
