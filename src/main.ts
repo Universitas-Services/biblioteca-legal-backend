@@ -17,4 +17,8 @@ async function bootstrap() {
 
   await app.listen(process.env.PORT ?? 3000);
 }
-bootstrap();
+bootstrap().catch(err => {
+  // eslint-disable-next-line no-console
+  console.error('Error during application startup:', err);
+  process.exit(1);
+});
