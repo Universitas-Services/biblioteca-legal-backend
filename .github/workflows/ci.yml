@@ -1,0 +1,46 @@
+name: CI Pipeline - Biblioteca Legal
+
+# 1. ¿Cuándo se ejecuta este pipeline?
+on:
+  push:
+    branches: ['main']
+  pull_request:
+    branches: ['main']
+
+# 2. ¿Qué trabajos (jobs) va a realizar?
+jobs:
+  build-and-test:
+    name: Build & Test
+    runs-on: ubuntu-latest # Levanta un servidor temporal con Ubuntu
+
+    steps:
+      # Paso 2.1: Descargar el código de tu repositorio
+      - name: Checkout del código
+        uses: actions/checkout@v4
+
+      # Paso 2.2: Instalar Node.js versión 18 (la misma de tu Dockerfile)
+      - name: Configurar Node.js 18
+        uses: actions/setup-node@v4
+        with:
+          node-version: '18'
+          cache: 'npm' # Optimiza el tiempo guardando en caché las dependencias
+
+      # Paso 2.3: Instalar dependencias exactas
+      - name: Instalar dependencias
+        run: npm ci
+
+      # Paso 2.4: Generar el cliente de Prisma (vital antes de compilar)
+      - name: Generar Prisma Client
+        run: npx prisma generate
+
+      # Paso 2.5: Revisión de calidad de código (ESLint)
+      - name: Ejecutar Linter
+        run: npm run lint
+
+      # Paso 2.6: Ejecutar Pruebas Unitarias (Jest)
+      - name: Ejecutar Pruebas
+        run: npm run test
+
+      # Paso 2.7: Compilar el proyecto de TypeScript a JavaScript
+      - name: Construir la aplicación
+        run: npm run build
