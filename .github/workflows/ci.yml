@@ -3,9 +3,9 @@ name: CI Pipeline - Biblioteca Legal
 # 1. ¿Cuándo se ejecuta este pipeline?
 on:
   push:
-    branches: ['main']
+    branches: ['main', 'dev']
   pull_request:
-    branches: ['main']
+    branches: ['main', 'dev']
 
 # 2. ¿Qué trabajos (jobs) va a realizar?
 jobs:
