@@ -16,7 +16,7 @@ export class AuthController {
   })
   @ApiBody({ type: RegisterDto })
   async register(@Body() body: RegisterDto) {
-    return this.authService.register(body.email, body.password, body.role);
+    return this.authService.register(body.email, body.password);
   }
 
   @Post('login')

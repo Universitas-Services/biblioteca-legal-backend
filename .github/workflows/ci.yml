@@ -1,46 +1,55 @@
-name: CI Pipeline - Biblioteca Legal
+name: CI/CD Pipeline - Biblioteca Legal
 
-# 1. ¿Cuándo se ejecuta este pipeline?
 on:
   push:
     branches: ['main', 'dev']
   pull_request:
     branches: ['main', 'dev']
 
-# 2. ¿Qué trabajos (jobs) va a realizar?
 jobs:
+  # ----------------------------------------
+  # FASE 1: INTEGRACIÓN CONTINUA (CI)
+  # ----------------------------------------
   build-and-test:
     name: Build & Test
-    runs-on: ubuntu-latest # Levanta un servidor temporal con Ubuntu
+    runs-on: ubuntu-latest
 
     steps:
-      # Paso 2.1: Descargar el código de tu repositorio
       - name: Checkout del código
         uses: actions/checkout@v4
 
-      # Paso 2.2: Instalar Node.js versión 18 (la misma de tu Dockerfile)
       - name: Configurar Node.js 18
         uses: actions/setup-node@v4
         with:
           node-version: '18'
-          cache: 'npm' # Optimiza el tiempo guardando en caché las dependencias
+          cache: 'npm'
 
-      # Paso 2.3: Instalar dependencias exactas
       - name: Instalar dependencias
         run: npm ci
 
-      # Paso 2.4: Generar el cliente de Prisma (vital antes de compilar)
-      - name: Generar Prisma Client
-        run: npx prisma generate
-
-      # Paso 2.5: Revisión de calidad de código (ESLint)
       - name: Ejecutar Linter
         run: npm run lint
 
-      # Paso 2.6: Ejecutar Pruebas Unitarias (Jest)
       - name: Ejecutar Pruebas
         run: npm run test
 
-      # Paso 2.7: Compilar el proyecto de TypeScript a JavaScript
       - name: Construir la aplicación
         run: npm run build
+
+  # ----------------------------------------
+  # FASE 2: DESPLIEGUE CONTINUO (CD)
+  # ----------------------------------------
+  deploy:
+    name: Deploy to Render
+    runs-on: ubuntu-latest
+    needs: build-and-test
+    # Modificación: Se ejecuta en push a main O en pull request cuyo destino sea main
+    if: >
+      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
+      (github.event_name == 'pull_request' && github.base_ref == 'main')
+
+    steps:
+      - name: Disparar Deploy Hook de Render
+        run: |
+          curl -X POST ${{ secrets.RENDER_DEPLOY_HOOK }}
+          echo "Se ha notificado a Render para que comience el despliegue."
