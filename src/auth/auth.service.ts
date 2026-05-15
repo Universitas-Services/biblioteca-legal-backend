@@ -15,7 +15,7 @@ export class AuthService {
     this.prismaClient = prisma.client;
   }
 
-  async register(email: string, pass: string, role: Role = Role.CLIENTE) {
+  async register(email: string, pass: string) {
     // 1. Verificamos si el usuario ya existe
     const userExists = await this.prismaClient.user.findUnique({
       where: { email },
@@ -32,7 +32,7 @@ export class AuthService {
       data: {
         email,
         password: hashedPassword,
-        role,
+        role: Role.CLIENTE,
       },
     });
 
