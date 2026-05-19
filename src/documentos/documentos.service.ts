@@ -23,7 +23,7 @@ export class DocumentosService {
     }
 
     // 2. Subir el archivo original a Google Cloud Storage
-    const cloudUrl = await this.storage.uploadPdf(file.originalname, file.buffer);
+    const cloudUrl = await this.storage.uploadDocument(file);
 
     // 3. Guardar el registro en base de datos
     const nuevoDoc: Documento = await this.prisma.client.documento.create({

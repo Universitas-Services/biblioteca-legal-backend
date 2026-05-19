@@ -56,3 +56,8 @@ pids
 report.[0-9]*.[0-9]*.[0-9]*.[0-9]*.json
 
 /generated/prisma
+
+#Keys bucket gcp
+/credentials
+agente-manual-contrataciones-*.json
+*.json.key
