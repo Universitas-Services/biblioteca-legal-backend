@@ -2,7 +2,7 @@ name: CI/CD Pipeline - Biblioteca Legal
 
 on:
   push:
-    branches: ['main', 'dev']
+    branches: ['dev']
   pull_request:
     branches: ['main', 'dev']
 
@@ -43,10 +43,10 @@ jobs:
     name: Deploy to Render
     runs-on: ubuntu-latest
     needs: build-and-test
-    # Modificación: Se ejecuta en push a main O en pull request cuyo destino sea main
+    # Modificación: Se ejecuta en push a dev O en pull request cuyo destino sea dev
     if: >
-      (github.event_name == 'push' && github.ref == 'refs/heads/main') ||
-      (github.event_name == 'pull_request' && github.base_ref == 'main')
+      (github.event_name == 'push' && github.ref == 'refs/heads/dev') ||
+      (github.event_name == 'pull_request' && github.base_ref == 'dev')
 
     steps:
       - name: Disparar Deploy Hook de Render
