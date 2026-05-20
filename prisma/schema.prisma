@@ -21,6 +21,30 @@ model Documento {
   archivoOriginalUrl  String
   estado              String     @default("Pendiente de Revisión")
   ultimaActualizacion DateTime   @updatedAt
+
+  soloLecturaImagen   Boolean    @default(false)
+  nombreBreve         String?
+  temaPrincipal       String?
+  categorias          String[]
+  etiquetas           String[]
+  tipoNorma           String?
+  enteEmisor          String?
+  fechaPublicacion    String?
+  numeroGaceta        String?
+  
+  esReforma           Boolean    @default(false)
+  reformaAId          String?
+  reformaA            Documento? @relation("ReformasRelation", fields: [reformaAId], references: [id])
+  reformas            Documento[] @relation("ReformasRelation")
+
+  matrizAElementos    String[]
+  matrizBElementos    String[]
+  resumen             String?
+  palabrasClave       String[]
+
+  eliminado           Boolean    @default(false)
+  fechaEliminacion    DateTime?
+
   auditLogs           AuditLog[]
 }
 
