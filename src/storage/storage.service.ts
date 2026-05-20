@@ -99,6 +99,7 @@ export class StorageService {
         version: 'v4',
         action: 'read',
         expires: Date.now() + 15 * 60 * 1000, // 15 minutos
+        responseDisposition: 'inline', // Obliga al navegador a previsualizar en lugar de descargar
       });
 
       this.logger.log(`URL firmada generada para: ${filePath}`);

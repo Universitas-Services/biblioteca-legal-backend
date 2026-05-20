@@ -1,6 +1,10 @@
 import {
   Controller,
   Post,
+  Get,
+  Patch,
+  Delete,
+  Param,
   UseInterceptors,
   UploadedFile,
   Body,
@@ -19,6 +23,7 @@ import { Role } from '@prisma/client';
 import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
 import { UploadDocumentoDto } from './dto/upload-documento.dto';
 import { UploadDocumentoRequestDto } from './dto/upload-documento-request.dto';
+import { UpdateDocumentoDto } from './dto/update-documento.dto';
 
 @Controller('documentos')
 @ApiTags('Documentos')
@@ -35,18 +40,91 @@ export class DocumentosController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Subir documento',
-    description: 'Endpoint para subir documentos al sistema. Requiere rol de CURADOR.',
+    description:
+      'Endpoint para subir documentos al sistema. Requiere rol de CURADOR, ADMIN o REVISOR.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: UploadDocumentoRequestDto })
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.CURADOR)
+  @Roles(Role.CURADOR, Role.ADMIN, Role.REVISOR)
   @UseInterceptors(FileInterceptor('file'))
   async uploadDocumento(
     @UploadedFile() file: Express.Multer.File,
     @Body() body: UploadDocumentoDto,
   ) {
-    return this.documentosService.procesarCarga(file, body.titulo);
+    return this.documentosService.procesarCarga(file, body);
+  }
+
+  @Get()
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Listar documentos',
+    description:
+      'Obtiene todos los documentos activos. Accesible por CLIENTE, CURADOR, REVISOR, ADMIN.',
+  })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CLIENTE, Role.CURADOR, Role.REVISOR, Role.ADMIN)
+  async findAll() {
+    return this.documentosService.findAll();
+  }
+
+  @Get(':id')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Obtener un documento',
+    description:
+      'Obtiene los detalles de un documento. Accesible por CLIENTE, CURADOR, REVISOR, ADMIN.',
+  })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CLIENTE, Role.CURADOR, Role.REVISOR, Role.ADMIN)
+  async findOne(@Param('id') id: string) {
+    return this.documentosService.findOne(id);
+  }
+
+  @Get(':id/preview')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Previsualizar documento',
+    description:
+      'Devuelve una URL firmada de Google Cloud Storage configurada para previsualización (inline) que expira en 15 minutos.',
+  })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CLIENTE, Role.CURADOR, Role.REVISOR, Role.ADMIN)
+  async preview(@Param('id') id: string) {
+    const documento = await this.documentosService.findOne(id);
+    const url = await this.storageService.getSignedUrl(documento.archivoOriginalUrl);
+    return { url };
+  }
+
+  @Patch(':id')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Actualizar documento',
+    description:
+      'Actualiza los metadatos o el archivo de un documento. Requiere rol de CURADOR, ADMIN o REVISOR.',
+  })
+  @ApiConsumes('multipart/form-data')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CURADOR, Role.ADMIN, Role.REVISOR)
+  @UseInterceptors(FileInterceptor('file'))
+  async update(
+    @Param('id') id: string,
+    @Body() updateData: UpdateDocumentoDto,
+    @UploadedFile() file?: Express.Multer.File,
+  ) {
+    return this.documentosService.update(id, updateData, file);
+  }
+
+  @Delete(':id')
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary: 'Eliminar documento de forma pasiva',
+    description: 'Marca un documento como eliminado. Requiere rol de CURADOR, ADMIN o REVISOR.',
+  })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CURADOR, Role.ADMIN, Role.REVISOR)
+  async softDelete(@Param('id') id: string) {
+    return this.documentosService.softDelete(id);
   }
 
   @Post('upload/resoluciones')
@@ -54,33 +132,24 @@ export class DocumentosController {
   @ApiOperation({
     summary: 'Subir resolución legal',
     description:
-      'Sube una resolución legal a GCS (carpeta resoluciones) y guarda la referencia en la base de datos. Requiere rol de CURADOR.',
+      'Sube una resolución legal a GCS (carpeta resoluciones) y guarda la referencia en la base de datos. Requiere rol de CURADOR, ADMIN o REVISOR.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: UploadDocumentoRequestDto })
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.CURADOR)
+  @Roles(Role.CURADOR, Role.ADMIN, Role.REVISOR)
   @UseInterceptors(FileInterceptor('file'))
   async uploadResolucion(
     @UploadedFile() file: Express.Multer.File,
     @Body() body: UploadDocumentoDto,
   ): Promise<{
     message: string;
-    documento: {
-      id: string;
-      titulo: string;
-      archivoOriginalUrl: string;
-      estado: string;
-      ultimaActualizacion: Date;
-    };
+    documento: any;
   }> {
     try {
-      // 1. Subir el archivo a GCS en la carpeta 'resoluciones'
       const gcsUri: string = await this.storageService.uploadDocument(file, 'resoluciones');
-
       this.logger.log(`Resolución subida a GCS exitosamente: ${gcsUri}`);
 
-      // 2. Crear el registro en la base de datos con los metadatos y la URI de GCS
       const documento = await this.prismaService.client.documento.create({
         data: {
           titulo: body.titulo,
@@ -96,7 +165,6 @@ export class DocumentosController {
         documento,
       };
     } catch (error: unknown) {
-      // Si el error ya es una excepción de NestJS, lo re-lanzamos tal cual
       if (error instanceof InternalServerErrorException) {
         throw error;
       }
