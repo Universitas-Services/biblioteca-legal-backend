@@ -51,6 +51,11 @@ Push a la rama `dev` → GitHub Actions (lint, test, build) → Deploy Hook de R
 - `POST /auth/logout` (el token anterior debe dejar de funcionar)
 - Usuarios deben **volver a iniciar sesión** tras el deploy (JWT con `tokenVersion`)
 
+## Node.js
+
+- **CI (GitHub Actions) y Render:** Node **20** o superior.
+- **Local / Husky (lint-staged):** recomendado Node **22.22+** para pre-commit sin warnings.
+
 ## Desarrollo local
 
 ```powershell
