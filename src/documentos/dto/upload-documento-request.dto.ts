@@ -1,28 +1,45 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UploadDocumentoRequestDto {
-  @ApiProperty({
-    example: 'Contrato de servicios 2024',
-    description: 'Título del documento',
-  })
+  @ApiProperty()
   titulo: string;
 
-  @ApiProperty({
-    example: 'Ministerio de Justicia',
-    description: 'Ente/emisor del documento',
-  })
-  ente: string;
+  @ApiProperty()
+  tituloIntegro: string;
 
-  @ApiProperty({
-    example: '2024-01-15',
-    description: 'Fecha del documento en formato YYYY-MM-DD',
-  })
-  fecha: string;
+  @ApiProperty()
+  nombreBreve: string;
 
-  @ApiProperty({
-    type: 'string',
-    format: 'binary',
-    description: 'Archivo a subir (PDF, DOC, etc.)',
-  })
-  file: any;
+  @ApiProperty()
+  temaPrincipal: string;
+
+  @ApiProperty()
+  tipoNorma: string;
+
+  @ApiProperty()
+  enteEmisor: string;
+
+  @ApiProperty()
+  fechaPublicacion: string;
+
+  @ApiProperty({ description: 'IDs de categorías aprobadas (separados por coma)' })
+  categoriaIds: string;
+
+  @ApiProperty({ required: false })
+  soloLecturaImagen?: boolean;
+
+  @ApiProperty({ required: false })
+  etiquetas?: string;
+
+  @ApiProperty({ required: false })
+  numeroGaceta?: string;
+
+  @ApiProperty({ required: false })
+  resumen?: string;
+
+  @ApiProperty({ required: false })
+  palabrasClave?: string;
+
+  @ApiProperty({ type: 'string', format: 'binary' })
+  file: Express.Multer.File;
 }

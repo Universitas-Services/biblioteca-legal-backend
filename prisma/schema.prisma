@@ -7,37 +7,202 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-model User {
-  id        String     @id @default(uuid())
-  email     String     @unique
-  password  String
-  role      Role       @default(CLIENTE)
-  auditLogs AuditLog[]
-}
-
-model Documento {
-  id                  String     @id @default(uuid())
-  titulo              String
-  archivoOriginalUrl  String
-  estado              String     @default("Pendiente de Revisión")
-  ultimaActualizacion DateTime   @updatedAt
-  auditLogs           AuditLog[]
-}
-
-model AuditLog {
-  id          String     @id @default(uuid())
-  accion      String
-  fecha       DateTime   @default(now())
-  userId      String
-  documentoId String?
-  documento   Documento? @relation(fields: [documentoId], references: [id])
-  user        User       @relation(fields: [userId], references: [id])
-}
-
 enum Role {
   CLIENTE
   CURADOR
   REVISOR
   AUDITOR
   ADMIN
+}
+
+enum EstadoDocumento {
+  PENDIENTE_REVISION
+  VIGENTE
+  REFORMADA
+  DEROGADA
+}
+
+enum EstadoCategoria {
+  SUGERIDA
+  APROBADA
+}
+
+enum Profesion {
+  ABOGADO
+  NOTARIO
+  JUEZ
+  FISCAL
+  DEFENSOR
+  ESTUDIANTE_DERECHO
+  ACADEMICO
+  CONSULTOR_LEGAL
+  OTRO
+}
+
+enum TipoNotificacion {
+  REFORMADA
+  DEROGADA
+}
+
+model User {
+  id                   String              @id @default(uuid())
+  email                String              @unique
+  password             String
+  role                 Role                @default(CLIENTE)
+  nombre               String?
+  apellido             String?
+  telefono             String?
+  pais                 String?
+  profesion            Profesion?
+  nivelMuro            Int                 @default(0)
+  tokenVersion         Int                 @default(0)
+  consultasRealizadas  Int                 @default(0)
+  especialidades       String[]
+  createdAt            DateTime            @default(now())
+  updatedAt            DateTime            @updatedAt
+  auditLogs            AuditLog[]
+  favoritos            Favorito[]
+  historialConsultas   HistorialConsulta[]
+  comentariosInternos  ComentarioInterno[]
+  notificaciones       Notificacion[]
+  documentosCurados    Documento[]         @relation("CuradorDocumentos")
+  documentosRevisados  Documento[]         @relation("RevisorDocumentos")
+  categoriasSugeridas  Categoria[]
+}
+
+model Documento {
+  id                  String           @id @default(uuid())
+  titulo              String
+  tituloIntegro       String
+  archivoOriginalUrl  String
+  estado              EstadoDocumento  @default(PENDIENTE_REVISION)
+  ultimaActualizacion DateTime         @updatedAt
+  createdAt           DateTime         @default(now())
+
+  soloLecturaImagen Boolean  @default(false)
+  nombreBreve       String?
+  temaPrincipal     String?
+  etiquetas         String[]
+  tipoNorma         String?
+  enteEmisor        String?
+  fechaPublicacion  String?
+  numeroGaceta      String?
+
+  esReforma     Boolean    @default(false)
+  reformaAId    String?
+  reformaA      Documento? @relation("ReformasRelation", fields: [reformaAId], references: [id])
+  reformas      Documento[] @relation("ReformasRelation")
+
+  resumen       String?
+  palabrasClave String[]
+
+  eliminado        Boolean   @default(false)
+  fechaEliminacion DateTime?
+
+  curadorId          String?
+  curador            User?   @relation("CuradorDocumentos", fields: [curadorId], references: [id])
+  revisorAsignadoId  String?
+  revisorAsignado    User?   @relation("RevisorDocumentos", fields: [revisorAsignadoId], references: [id])
+
+  matrizAId String?
+  matrizA   MatrizA? @relation(fields: [matrizAId], references: [id])
+  matrizB   MatrizB[] @relation("DocumentoMatrizB")
+
+  categorias          Categoria[]
+  auditLogs           AuditLog[]
+  favoritos           Favorito[]
+  historialConsultas  HistorialConsulta[]
+  comentariosInternos ComentarioInterno[]
+  notificaciones      Notificacion[]
+
+  @@index([tituloIntegro, enteEmisor, fechaPublicacion])
+}
+
+model Categoria {
+  id           String          @id @default(uuid())
+  nombre       String          @unique
+  estado       EstadoCategoria @default(SUGERIDA)
+  sugeridoPorId String?
+  sugeridoPor  User?           @relation(fields: [sugeridoPorId], references: [id])
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+  documentos   Documento[]
+}
+
+model MatrizA {
+  id            String      @id @default(uuid())
+  nombre        String
+  descripcion   String?
+  palabrasClave String[]
+  activo        Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  documentos    Documento[]
+}
+
+model MatrizB {
+  id            String      @id @default(uuid())
+  nombre        String
+  descripcion   String?
+  palabrasClave String[]
+  activo        Boolean     @default(true)
+  esAgora       Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  documentos    Documento[] @relation("DocumentoMatrizB")
+}
+
+model HistorialConsulta {
+  id          String    @id @default(uuid())
+  userId      String
+  documentoId String
+  fecha       DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id])
+  documento   Documento @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+}
+
+model Favorito {
+  id          String    @id @default(uuid())
+  userId      String
+  documentoId String
+  createdAt   DateTime  @default(now())
+  user        User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documento   Documento @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, documentoId])
+}
+
+model ComentarioInterno {
+  id          String    @id @default(uuid())
+  texto       String
+  autorId     String
+  documentoId String
+  fecha       DateTime  @default(now())
+  autor       User      @relation(fields: [autorId], references: [id])
+  documento   Documento @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+}
+
+model Notificacion {
+  id          String           @id @default(uuid())
+  userId      String
+  documentoId String
+  tipo        TipoNotificacion
+  mensaje     String
+  leida       Boolean          @default(false)
+  createdAt   DateTime         @default(now())
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documento   Documento        @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+}
+
+model AuditLog {
+  id          String     @id @default(uuid())
+  accion      String
+  detalle     String?
+  fecha       DateTime   @default(now())
+  userId      String
+  documentoId String?
+  documento   Documento? @relation(fields: [documentoId], references: [id])
+  user        User       @relation(fields: [userId], references: [id])
 }

@@ -1,15 +1,21 @@
 services:
   postgres:
     image: postgres:15
-    container_name: universitas_db
+    container_name: biblioteca_legal_db
     environment:
       POSTGRES_USER: admin
       POSTGRES_PASSWORD: rootpassword
       POSTGRES_DB: universitas
     ports:
-      - '5432:5432'
+      # 5434 en el host para no chocar con otros Postgres locales (5432, 5433)
+      - '5434:5432'
     volumes:
-      - postgres_data:/var/lib/postgresql/data
+      - biblioteca_legal_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ['CMD-SHELL', 'pg_isready -U admin -d universitas']
+      interval: 5s
+      timeout: 5s
+      retries: 5
 
 volumes:
-  postgres_data:
+  biblioteca_legal_postgres_data:
