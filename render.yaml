@@ -1,0 +1,19 @@
+# Referencia para configurar el Web Service en Render (Blueprint opcional).
+# Ajusta name y repo según tu cuenta.
+
+services:
+  - type: web
+    name: biblioteca-legal-backend
+    runtime: node
+    buildCommand: npm ci && npx prisma generate && npm run build
+    startCommand: npm run start:prod
+    preDeployCommand: npx prisma migrate deploy
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: universitas-db
+          property: connectionString
+      - key: JWT_SECRET
+        generateValue: true
+      - key: NODE_VERSION
+        value: '20'

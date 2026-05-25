@@ -11,6 +11,7 @@ import { ROLES_KEY } from '../decorators/roles.decorator';
 
 interface RequestWithUser {
   user?: {
+    sub?: string;
     id: string;
     email: string;
     role: Role;

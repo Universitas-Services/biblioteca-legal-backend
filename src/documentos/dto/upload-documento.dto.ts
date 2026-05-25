@@ -1,15 +1,60 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsArray } from 'class-validator';
+import {
+  IsString,
+  IsNotEmpty,
+  IsOptional,
+  IsBoolean,
+  IsArray,
+  IsUUID,
+  ArrayMinSize,
+} from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class UploadDocumentoDto {
-  @ApiProperty({
-    example: 'Contrato de servicios 2024',
-    description: 'Título oficial del documento',
-  })
-  @IsString({ message: 'El título debe ser una cadena de texto' })
-  @IsNotEmpty({ message: 'El título es obligatorio' })
+  @ApiProperty({ example: 'Ley Orgánica de Contrataciones Públicas' })
+  @IsString()
+  @IsNotEmpty()
   titulo: string;
+
+  @ApiProperty({ example: 'LOCP-2024 Completa' })
+  @IsString()
+  @IsNotEmpty()
+  tituloIntegro: string;
+
+  @ApiProperty({ example: 'locp-2024' })
+  @IsString()
+  @IsNotEmpty()
+  nombreBreve: string;
+
+  @ApiProperty({ example: 'Derecho Mercantil' })
+  @IsString()
+  @IsNotEmpty()
+  temaPrincipal: string;
+
+  @ApiProperty({ example: 'Ley' })
+  @IsString()
+  @IsNotEmpty()
+  tipoNorma: string;
+
+  @ApiProperty({ example: 'Gaceta Oficial Extraordinaria' })
+  @IsString()
+  @IsNotEmpty()
+  enteEmisor: string;
+
+  @ApiProperty({ example: '2024-03-15' })
+  @IsString()
+  @IsNotEmpty()
+  fechaPublicacion: string;
+
+  @ApiProperty({ type: [String], description: 'IDs de categorías aprobadas' })
+  @IsArray()
+  @ArrayMinSize(1)
+  @IsUUID('4', { each: true })
+  @Transform(({ value }: { value: unknown }) => {
+    if (typeof value === 'string') return value.split(',').map(s => s.trim());
+    return value as string[];
+  })
+  categoriaIds: string[];
 
   @ApiProperty({ required: false })
   @IsBoolean()
@@ -17,28 +62,10 @@ export class UploadDocumentoDto {
   @Transform(({ value }) => value === 'true' || value === true)
   soloLecturaImagen?: boolean;
 
-  @ApiProperty({ required: false })
-  @IsString()
-  @IsOptional()
-  nombreBreve?: string;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @IsOptional()
-  temaPrincipal?: string;
-
   @ApiProperty({ required: false, type: [String] })
   @IsArray()
   @IsOptional()
-  @Transform(({ value }: { value: any }) =>
-    typeof value === 'string' ? value.split(',').map((s: string) => s.trim()) : (value as string[]),
-  )
-  categorias?: string[];
-
-  @ApiProperty({ required: false, type: [String] })
-  @IsArray()
-  @IsOptional()
-  @Transform(({ value }: { value: any }) =>
+  @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.split(',').map((s: string) => s.trim()) : (value as string[]),
   )
   etiquetas?: string[];
@@ -46,53 +73,7 @@ export class UploadDocumentoDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
-  tipoNorma?: string;
-
-  @ApiProperty({
-    example: 'Ministerio de Justicia',
-    description: 'Ente/emisor del documento',
-    required: false,
-  })
-  @IsString()
-  @IsOptional()
-  enteEmisor?: string;
-
-  @ApiProperty({ example: '2024-01-15', description: 'Fecha del documento', required: false })
-  @IsString()
-  @IsOptional()
-  fechaPublicacion?: string;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @IsOptional()
   numeroGaceta?: string;
-
-  @ApiProperty({ required: false })
-  @IsBoolean()
-  @IsOptional()
-  @Transform(({ value }) => value === 'true' || value === true)
-  esReforma?: boolean;
-
-  @ApiProperty({ required: false })
-  @IsString()
-  @IsOptional()
-  reformaAId?: string;
-
-  @ApiProperty({ required: false, type: [String] })
-  @IsArray()
-  @IsOptional()
-  @Transform(({ value }: { value: any }) =>
-    typeof value === 'string' ? value.split(',').map((s: string) => s.trim()) : (value as string[]),
-  )
-  matrizAElementos?: string[];
-
-  @ApiProperty({ required: false, type: [String] })
-  @IsArray()
-  @IsOptional()
-  @Transform(({ value }: { value: any }) =>
-    typeof value === 'string' ? value.split(',').map((s: string) => s.trim()) : (value as string[]),
-  )
-  matrizBElementos?: string[];
 
   @ApiProperty({ required: false })
   @IsString()
@@ -102,7 +83,7 @@ export class UploadDocumentoDto {
   @ApiProperty({ required: false, type: [String] })
   @IsArray()
   @IsOptional()
-  @Transform(({ value }: { value: any }) =>
+  @Transform(({ value }: { value: unknown }) =>
     typeof value === 'string' ? value.split(',').map((s: string) => s.trim()) : (value as string[]),
   )
   palabrasClave?: string[];

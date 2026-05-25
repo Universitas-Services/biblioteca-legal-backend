@@ -1,58 +1,45 @@
 import { ApiProperty } from '@nestjs/swagger';
 
 export class UploadDocumentoRequestDto {
-  @ApiProperty({ example: 'Contrato de servicios 2024', description: 'Título del documento' })
+  @ApiProperty()
   titulo: string;
 
-  @ApiProperty({ required: false, description: 'Solo lectura de imagen' })
+  @ApiProperty()
+  tituloIntegro: string;
+
+  @ApiProperty()
+  nombreBreve: string;
+
+  @ApiProperty()
+  temaPrincipal: string;
+
+  @ApiProperty()
+  tipoNorma: string;
+
+  @ApiProperty()
+  enteEmisor: string;
+
+  @ApiProperty()
+  fechaPublicacion: string;
+
+  @ApiProperty({ description: 'IDs de categorías aprobadas (separados por coma)' })
+  categoriaIds: string;
+
+  @ApiProperty({ required: false })
   soloLecturaImagen?: boolean;
 
-  @ApiProperty({ required: false, description: 'Nombre breve' })
-  nombreBreve?: string;
-
-  @ApiProperty({ required: false, description: 'Tema principal' })
-  temaPrincipal?: string;
-
-  @ApiProperty({ required: false, description: 'Categorías (separadas por coma)' })
-  categorias?: string;
-
-  @ApiProperty({ required: false, description: 'Etiquetas (separadas por coma)' })
+  @ApiProperty({ required: false })
   etiquetas?: string;
 
-  @ApiProperty({ required: false, description: 'Tipo de norma' })
-  tipoNorma?: string;
-
-  @ApiProperty({ example: 'Ministerio de Justicia', required: false })
-  enteEmisor?: string;
-
-  @ApiProperty({ example: '2024-01-15', required: false })
-  fechaPublicacion?: string;
-
-  @ApiProperty({ required: false, description: 'Número de Gaceta' })
+  @ApiProperty({ required: false })
   numeroGaceta?: string;
 
-  @ApiProperty({ required: false, description: 'Es reforma' })
-  esReforma?: boolean;
-
-  @ApiProperty({ required: false, description: 'ID del documento que reforma' })
-  reformaAId?: string;
-
-  @ApiProperty({ required: false, description: 'Matriz A (separadas por coma)' })
-  matrizAElementos?: string;
-
-  @ApiProperty({ required: false, description: 'Matriz B (separadas por coma)' })
-  matrizBElementos?: string;
-
-  @ApiProperty({ required: false, description: 'Resumen' })
+  @ApiProperty({ required: false })
   resumen?: string;
 
-  @ApiProperty({ required: false, description: 'Palabras clave (separadas por coma)' })
+  @ApiProperty({ required: false })
   palabrasClave?: string;
 
-  @ApiProperty({
-    type: 'string',
-    format: 'binary',
-    description: 'Archivo a subir (PDF, DOC, etc.)',
-  })
-  file: any;
+  @ApiProperty({ type: 'string', format: 'binary' })
+  file: Express.Multer.File;
 }

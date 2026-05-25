@@ -1,4 +1,9 @@
-import { Injectable, UnauthorizedException, ConflictException } from '@nestjs/common';
+import {
+  Injectable,
+  UnauthorizedException,
+  ConflictException,
+  NotFoundException,
+} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
 import * as bcrypt from 'bcrypt';
@@ -54,9 +59,41 @@ export class AuthService {
     }
 
     // 3. Generamos el JWT
-    const payload = { sub: user.id, email: user.email, role: user.role };
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+      tv: user.tokenVersion,
+    };
     return {
       access_token: this.jwtService.sign(payload),
+    };
+  }
+
+  /** Cierra la sesión del usuario autenticado (invalida todos sus tokens). */
+  async logout(userId: string) {
+    return this.invalidateUserTokens(userId);
+  }
+
+  /** Admin: cierra la sesión de cualquier usuario. */
+  async logoutUser(targetUserId: string) {
+    const user = await this.prismaClient.user.findUnique({ where: { id: targetUserId } });
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+    return this.invalidateUserTokens(targetUserId);
+  }
+
+  private async invalidateUserTokens(userId: string) {
+    const user = await this.prismaClient.user.update({
+      where: { id: userId },
+      data: { tokenVersion: { increment: 1 } },
+      select: { id: true, email: true, role: true, tokenVersion: true },
+    });
+
+    return {
+      message: 'Sesión finalizada correctamente',
+      userId: user.id,
     };
   }
 }
