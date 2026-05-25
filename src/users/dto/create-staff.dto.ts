@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsEmail, IsEnum, IsString, MinLength } from 'class-validator';
+import { IsArray, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 import { Role } from '@prisma/client';
 
 export class CreateStaffDto {
@@ -28,4 +28,15 @@ export class CreateStaffDto {
       'El rol debe ser CURADOR, REVISOR o AUDITOR. No se permite crear CLIENTE o ADMIN desde este endpoint.',
   })
   role: Role;
+
+  @ApiProperty({
+    example: ['Derecho Electoral', 'Derecho Constitucional'],
+    description: 'Especialidades del personal (CURADOR/REVISOR)',
+    required: false,
+    type: [String],
+  })
+  @IsArray()
+  @IsString({ each: true })
+  @IsOptional()
+  especialidades?: string[];
 }
