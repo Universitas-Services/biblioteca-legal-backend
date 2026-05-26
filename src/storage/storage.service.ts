@@ -1,4 +1,9 @@
-import { Injectable, InternalServerErrorException, Logger } from '@nestjs/common';
+import {
+  Injectable,
+  InternalServerErrorException,
+  ConflictException,
+  Logger,
+} from '@nestjs/common';
 import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
@@ -111,6 +116,70 @@ export class StorageService {
         error instanceof Error ? error.stack : undefined,
       );
       throw new InternalServerErrorException(`Error al generar la URL firmada: ${message}`);
+    }
+  }
+
+  /**
+   * Crea una carpeta simulada en Google Cloud Storage.
+   *
+   * En GCS no existen carpetas reales; se simula la jerarquía creando un objeto
+   * vacío (0 bytes) cuyo nombre termina en `/`.
+   *
+   * Flujo:
+   * 1. Se asegura de que la ruta termine en `/` (requisito de convención).
+   * 2. Obtiene una referencia al archivo (objeto) en el bucket.
+   * 3. Verifica si el objeto ya existe con `file.exists()`.
+   *    - Si existe → lanza ConflictException para evitar duplicados.
+   * 4. Guarda un string vacío (`file.save('')`) para crear el objeto de 0 bytes.
+   * 5. Retorna la URI nativa de GCS en formato `gs://bucket-name/ruta/`.
+   *
+   * @param folderPath - Ruta de la carpeta a crear. Debe terminar en `/`.
+   *                     Ejemplo: `tema-principal/derecho-civil/ley/`
+   * @returns La URI nativa de GCS (`gs://bucket-name/ruta/`).
+   * @throws ConflictException si la carpeta ya existe en el bucket.
+   * @throws InternalServerErrorException si ocurre un error inesperado de GCS.
+   */
+  async createFolder(folderPath: string): Promise<string> {
+    try {
+      // Garantizar que la ruta siempre termine en `/` para respetar la convención de carpetas
+      const normalizedPath = folderPath.endsWith('/') ? folderPath : `${folderPath}/`;
+
+      // Obtener referencia al bucket y al archivo (objeto) que representará la carpeta
+      const bucket = this.storage.bucket(this.bucketName);
+      const file = bucket.file(normalizedPath);
+
+      // Verificar si la carpeta ya existe para evitar duplicados
+      const [exists] = await file.exists();
+      if (exists) {
+        this.logger.warn(`La carpeta ya existe en GCS: ${normalizedPath}`);
+        throw new ConflictException(`La carpeta '${normalizedPath}' ya existe en el bucket.`);
+      }
+
+      // Crear el objeto vacío (0 bytes) que simula la carpeta en GCS
+      await file.save('', {
+        contentType: 'application/x-directory', // Tipo MIME convencional para carpetas simuladas
+      });
+
+      // Construir la URI nativa de GCS para retornarla al cliente
+      const gcsUri = `gs://${this.bucketName}/${normalizedPath}`;
+      this.logger.log(`Carpeta creada exitosamente en GCS: ${gcsUri}`);
+
+      return gcsUri;
+    } catch (error: unknown) {
+      // Si el error ya es una excepción HTTP de NestJS (ej: ConflictException), re-lanzarla directamente
+      if (error instanceof ConflictException) {
+        throw error;
+      }
+
+      // Para cualquier otro error inesperado, envolver en InternalServerErrorException
+      const message = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(
+        `Error al crear carpeta en GCS: ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        `Error al crear la carpeta en Google Cloud Storage: ${message}`,
+      );
     }
   }
 }
