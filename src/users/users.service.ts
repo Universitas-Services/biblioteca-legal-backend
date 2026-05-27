@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EstadoDocumento, User } from '@prisma/client';
+import { EstadoDocumento, Role, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { PerfilNivel1Dto } from './dto/perfil-nivel1.dto';
@@ -17,25 +17,55 @@ export class UsersService {
   constructor(private prisma: PrismaService) {}
 
   async createStaffUser(createStaffDto: CreateStaffDto) {
-    const { email, password, role, especialidades } = createStaffDto;
+    const { email, password, role, nombre, apellido, temaIds } = createStaffDto;
+
+    // Validar que REVISOR tenga al menos un tema asignado
+    if (role === Role.REVISOR && (!temaIds || temaIds.length === 0)) {
+      throw new BadRequestException('El rol REVISOR requiere al menos un temaIds asignado');
+    }
 
     const userExists = await this.prisma.client.user.findUnique({ where: { email } });
     if (userExists) {
       throw new ConflictException('El correo ya está registrado');
     }
 
+    // Validar que cada temaId exista en la BD
+    if (temaIds && temaIds.length > 0) {
+      const temasExistentes = await this.prisma.client.temaPrincipal.findMany({
+        where: { id: { in: temaIds } },
+        select: { id: true },
+      });
+      if (temasExistentes.length !== temaIds.length) {
+        const encontrados = temasExistentes.map(t => t.id);
+        const invalidos = temaIds.filter(id => !encontrados.includes(id));
+        throw new NotFoundException(`Los siguientes temaIds no existen: ${invalidos.join(', ')}`);
+      }
+    }
+
     const hashedPassword = await bcrypt.hash(password, 10);
 
-    const user: User = await this.prisma.client.user.create({
+    const user = await this.prisma.client.user.create({
       data: {
         email,
         password: hashedPassword,
         role,
-        especialidades: especialidades ?? [],
+        nombre,
+        apellido,
+        ...(temaIds && temaIds.length > 0
+          ? { temasAsignados: { connect: temaIds.map(id => ({ id })) } }
+          : {}),
       },
+      include: { temasAsignados: { select: { id: true, nombre: true, slug: true } } },
     });
 
-    return { id: user.id, email: user.email, role: user.role, especialidades: user.especialidades };
+    return {
+      id: user.id,
+      email: user.email,
+      role: user.role,
+      nombre: user.nombre,
+      apellido: user.apellido,
+      temasAsignados: user.temasAsignados,
+    };
   }
 
   async updatePerfilNivel1(userId: string, dto: PerfilNivel1Dto) {

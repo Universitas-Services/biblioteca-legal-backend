@@ -59,6 +59,7 @@ model TemaPrincipal {
   createdAt   DateTime          @default(now())
   updatedAt   DateTime          @updatedAt
   subcarpetas SubcarpetaNorma[] // Relación 1:N con los tipos de norma
+  revisores   User[]            @relation("RevisorTemas") // Revisores asignados a este tema
 }
 
 /// Representa un tipo de norma dentro de un tema principal.
@@ -91,7 +92,7 @@ model User {
   nivelMuro            Int                 @default(0)
   tokenVersion         Int                 @default(0)
   consultasRealizadas  Int                 @default(0)
-  especialidades       String[]
+  temasAsignados       TemaPrincipal[]     @relation("RevisorTemas") // Solo para REVISOR
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
   auditLogs            AuditLog[]
