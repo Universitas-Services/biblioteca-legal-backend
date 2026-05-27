@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsEmail, IsEnum, IsInt, IsOptional, IsString, MinLength } from 'class-validator';
+import { IsArray, IsEmail, IsEnum, IsOptional, IsString, MinLength } from 'class-validator';
 import { Role } from '@prisma/client';
 
 export class CreateStaffDto {
@@ -44,13 +44,13 @@ export class CreateStaffDto {
   apellido: string;
 
   @ApiProperty({
-    example: [1, 3],
+    example: ['123e4567-e89b-12d3-a456-426614174000'],
     description: 'IDs de los temas principales asignados (obligatorio para REVISOR)',
     required: false,
-    type: [Number],
+    type: [String],
   })
   @IsArray()
-  @IsInt({ each: true })
+  @IsString({ each: true })
   @IsOptional()
-  temaIds?: number[];
+  temaIds?: string[];
 }

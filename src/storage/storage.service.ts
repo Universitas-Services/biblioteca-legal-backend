@@ -271,7 +271,7 @@ export class StorageService {
    * @throws NotFoundException si el tema padre no existe.
    * @throws ConflictException si la subcarpeta ya existe dentro del tema.
    */
-  async createSubcarpeta(temaPrincipalId: number, nombre: string, slug: string) {
+  async createSubcarpeta(temaPrincipalId: string, nombre: string, slug: string) {
     // Buscar el tema padre para obtener su slug (necesario para construir la ruta GCS)
     const tema = await this.prisma.client.temaPrincipal.findUnique({
       where: { id: temaPrincipalId },
@@ -317,7 +317,7 @@ export class StorageService {
    * @returns Array de subcarpetas del tema, ordenadas por ID.
    * @throws NotFoundException si el tema padre no existe.
    */
-  async findSubcarpetasByTema(temaPrincipalId: number) {
+  async findSubcarpetasByTema(temaPrincipalId: string) {
     // Verificar que el tema exista antes de listar sus subcarpetas
     const tema = await this.prisma.client.temaPrincipal.findUnique({
       where: { id: temaPrincipalId },

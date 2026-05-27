@@ -52,7 +52,7 @@ enum TipoNotificacion {
 /// Cada registro está sincronizado con una carpeta simulada en GCS:
 ///   gs://bucket/tema-principal/{slug}/
 model TemaPrincipal {
-  id          Int               @id @default(autoincrement())
+  id          String            @id @default(uuid())
   nombre      String            @unique // Nombre original (ej: "Contrataciones Públicas")
   slug        String            @unique // Nombre formateado (ej: "contrataciones-publicas")
   gcsUri      String            // URI nativa de la carpeta en GCS
@@ -66,11 +66,11 @@ model TemaPrincipal {
 /// Cada registro está sincronizado con una carpeta simulada en GCS:
 ///   gs://bucket/tema-principal/{temaSlug}/{slug}/
 model SubcarpetaNorma {
-  id              Int           @id @default(autoincrement())
+  id              String        @id @default(uuid())
   nombre          String        // Nombre original (ej: "Ley Orgánica")
   slug            String        // Nombre formateado (ej: "ley-organica")
   gcsUri          String        // URI nativa de la carpeta en GCS
-  temaPrincipalId Int           // FK al tema padre
+  temaPrincipalId String        // FK al tema padre
   temaPrincipal   TemaPrincipal @relation(fields: [temaPrincipalId], references: [id], onDelete: Cascade)
   createdAt       DateTime      @default(now())
   updatedAt       DateTime      @updatedAt

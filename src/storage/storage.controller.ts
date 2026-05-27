@@ -4,7 +4,7 @@ import {
   Get,
   Body,
   Param,
-  ParseIntPipe,
+  ParseUUIDPipe,
   UseGuards,
   Logger,
 } from '@nestjs/common';
@@ -132,9 +132,9 @@ export class StorageController {
    */
   @Post('tema/:temaId/subcarpeta')
   @ApiOperation({ summary: 'Crear una subcarpeta de tipo de norma dentro de un tema (BD + GCS)' })
-  @ApiParam({ name: 'temaId', type: Number, description: 'ID numérico del tema principal' })
+  @ApiParam({ name: 'temaId', type: String, description: 'ID UUID del tema principal' })
   async createSubcarpeta(
-    @Param('temaId', ParseIntPipe) temaId: number,
+    @Param('temaId', ParseUUIDPipe) temaId: string,
     @Body() dto: CreateSubcarpetaDto,
   ) {
     const slug = this.formatSlug(dto.tipoNorma);
@@ -164,8 +164,8 @@ export class StorageController {
    */
   @Get('tema/:temaId/subcarpetas')
   @ApiOperation({ summary: 'Listar todas las subcarpetas de un tema específico' })
-  @ApiParam({ name: 'temaId', type: Number, description: 'ID numérico del tema principal' })
-  async findSubcarpetas(@Param('temaId', ParseIntPipe) temaId: number) {
+  @ApiParam({ name: 'temaId', type: String, description: 'ID UUID del tema principal' })
+  async findSubcarpetas(@Param('temaId', ParseUUIDPipe) temaId: string) {
     return this.storageService.findSubcarpetasByTema(temaId);
   }
 }
