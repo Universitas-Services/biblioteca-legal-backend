@@ -30,13 +30,27 @@ export class CreateStaffDto {
   role: Role;
 
   @ApiProperty({
-    example: ['Derecho Electoral', 'Derecho Constitucional'],
-    description: 'Especialidades del personal (CURADOR/REVISOR)',
+    example: 'Juan',
+    description: 'Nombre del personal interno',
+  })
+  @IsString()
+  nombre: string;
+
+  @ApiProperty({
+    example: 'Pérez',
+    description: 'Apellido del personal interno',
+  })
+  @IsString()
+  apellido: string;
+
+  @ApiProperty({
+    example: ['123e4567-e89b-12d3-a456-426614174000'],
+    description: 'IDs de los temas principales asignados (obligatorio para REVISOR)',
     required: false,
     type: [String],
   })
   @IsArray()
   @IsString({ each: true })
   @IsOptional()
-  especialidades?: string[];
+  temaIds?: string[];
 }

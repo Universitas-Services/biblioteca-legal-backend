@@ -10,8 +10,9 @@ export class AsignacionRevisorService {
     const revisor = await this.prisma.client.user.findFirst({
       where: {
         role: Role.REVISOR,
-        especialidades: { has: temaPrincipal },
+        temasAsignados: { some: { nombre: temaPrincipal } },
       },
+      orderBy: { createdAt: 'asc' },
     });
 
     return revisor?.id ?? null;

@@ -44,6 +44,41 @@ enum TipoNotificacion {
   DEROGADA
 }
 
+// ──────────────────────────────────────────────────────────────────────────────
+// Modelos de estructura de carpetas en Google Cloud Storage
+// ──────────────────────────────────────────────────────────────────────────────
+
+/// Representa un tema principal de la biblioteca legal.
+/// Cada registro está sincronizado con una carpeta simulada en GCS:
+///   gs://bucket/tema-principal/{slug}/
+model TemaPrincipal {
+  id          String            @id @default(uuid())
+  nombre      String            @unique // Nombre original (ej: "Contrataciones Públicas")
+  slug        String            @unique // Nombre formateado (ej: "contrataciones-publicas")
+  gcsUri      String            // URI nativa de la carpeta en GCS
+  createdAt   DateTime          @default(now())
+  updatedAt   DateTime          @updatedAt
+  subcarpetas SubcarpetaNorma[] // Relación 1:N con los tipos de norma
+  revisores   User[]            @relation("RevisorTemas") // Revisores asignados a este tema
+}
+
+/// Representa un tipo de norma dentro de un tema principal.
+/// Cada registro está sincronizado con una carpeta simulada en GCS:
+///   gs://bucket/tema-principal/{temaSlug}/{slug}/
+model SubcarpetaNorma {
+  id              String        @id @default(uuid())
+  nombre          String        // Nombre original (ej: "Ley Orgánica")
+  slug            String        // Nombre formateado (ej: "ley-organica")
+  gcsUri          String        // URI nativa de la carpeta en GCS
+  temaPrincipalId String        // FK al tema padre
+  temaPrincipal   TemaPrincipal @relation(fields: [temaPrincipalId], references: [id], onDelete: Cascade)
+  createdAt       DateTime      @default(now())
+  updatedAt       DateTime      @updatedAt
+
+  // Un mismo tipo de norma no puede repetirse dentro del mismo tema
+  @@unique([temaPrincipalId, slug])
+}
+
 model User {
   id                   String              @id @default(uuid())
   email                String              @unique
@@ -57,7 +92,7 @@ model User {
   nivelMuro            Int                 @default(0)
   tokenVersion         Int                 @default(0)
   consultasRealizadas  Int                 @default(0)
-  especialidades       String[]
+  temasAsignados       TemaPrincipal[]     @relation("RevisorTemas") // Solo para REVISOR
   createdAt            DateTime            @default(now())
   updatedAt            DateTime            @updatedAt
   auditLogs            AuditLog[]
