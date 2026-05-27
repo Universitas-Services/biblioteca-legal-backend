@@ -44,6 +44,12 @@ enum TipoNotificacion {
   DEROGADA
 }
 
+enum TipoSolucion {
+  CURSO
+  MODELO_DESCARGABLE
+  EVENTO
+}
+
 // ──────────────────────────────────────────────────────────────────────────────
 // Modelos de estructura de carpetas en Google Cloud Storage
 // ──────────────────────────────────────────────────────────────────────────────
@@ -164,27 +170,32 @@ model Categoria {
   documentos   Documento[]
 }
 
+/// Catálogo de Productos y Formación de Universitas.
+/// Alimenta las sugerencias laterales de la vista de documento (Producto/Curso).
 model MatrizA {
-  id            String      @id @default(uuid())
-  nombre        String
-  descripcion   String?
-  palabrasClave String[]
-  activo        Boolean     @default(true)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  documentos    Documento[]
+  id                 String       @id @default(uuid())
+  nombreProducto     String       // Nombre comercial (ej. "Curso de Gestión Pública")
+  tipoSolucion       TipoSolucion // Clasificador cerrado: CURSO, MODELO_DESCARGABLE, EVENTO
+  urlDestino         String       // Enlace de salida hacia la pasarela externa de Universitas
+  categoriasKeywords String[]     // Etiquetas temáticas para el algoritmo de match
+  activo             Boolean      @default(true) // Control de visualización (ADMIN puede editar)
+  createdAt          DateTime     @default(now())
+  updatedAt          DateTime     @updatedAt
+  documentos         Documento[]
 }
 
+/// Repositorio de Ágora / Lecturas Recomendadas.
+/// Alimenta las sugerencias laterales de la vista de documento (Artículos del blog).
 model MatrizB {
-  id            String      @id @default(uuid())
-  nombre        String
-  descripcion   String?
-  palabrasClave String[]
-  activo        Boolean     @default(true)
-  esAgora       Boolean     @default(true)
-  createdAt     DateTime    @default(now())
-  updatedAt     DateTime    @updatedAt
-  documentos    Documento[] @relation("DocumentoMatrizB")
+  id                 String     @id @default(uuid())
+  tituloArticulo     String     // Título exacto renderizado como texto hipervinculado
+  autorArticulo      String     // Nombre del especialista o doctrinario
+  urlDestinoAgora    String     // Enlace directo a la entrada en el blog WordPress (Ágora)
+  categoriasKeywords String[]   // Etiquetas temáticas para el match semántico
+  activo             Boolean    @default(true)
+  createdAt          DateTime   @default(now())
+  updatedAt          DateTime   @updatedAt
+  documentos         Documento[] @relation("DocumentoMatrizB")
 }
 
 model HistorialConsulta {
