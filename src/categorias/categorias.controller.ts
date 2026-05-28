@@ -30,9 +30,9 @@ export class CategoriasController {
   @Get('admin')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN)
+  @Roles(Role.ADMIN, Role.CURADOR)
   @ApiOperation({
-    summary: 'Listar todas las categorías (ADMIN)',
+    summary: 'Listar todas las categorías (ADMIN/CURADOR)',
     description: 'Incluye sugeridas y aprobadas para gestión administrativa.',
   })
   findAllAdmin() {
