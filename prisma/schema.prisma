@@ -179,6 +179,11 @@ model MatrizA {
   urlDestino         String       // Enlace de salida hacia la pasarela externa de Universitas
   categoriasKeywords String[]     // Etiquetas temáticas para el algoritmo de match
   activo             Boolean      @default(true) // Control de visualización (ADMIN puede editar)
+  
+  // Nuevos campos para Cloudinary
+  imagenBannerUrl      String?    // Enlace al recurso gráfico renderizado en el bloque visual
+  imagenBannerPublicId String?    // Identificador único en Cloudinary para gestión de borrado
+
   createdAt          DateTime     @default(now())
   updatedAt          DateTime     @updatedAt
   documentos         Documento[]

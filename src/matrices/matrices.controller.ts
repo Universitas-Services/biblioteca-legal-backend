@@ -1,5 +1,21 @@
-import { Body, Controller, Delete, Get, Param, Patch, Post, Req, UseGuards } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  Body,
+  Controller,
+  Delete,
+  Get,
+  Param,
+  Patch,
+  Post,
+  Req,
+  UseGuards,
+  UseInterceptors,
+  UploadedFile,
+  ParseFilePipe,
+  MaxFileSizeValidator,
+  FileTypeValidator,
+} from '@nestjs/common';
+import { FileInterceptor } from '@nestjs/platform-express';
+import { ApiBearerAuth, ApiOperation, ApiTags, ApiConsumes } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
@@ -31,8 +47,22 @@ export class MatricesController {
     summary: 'Crear producto en Matriz A (solo ADMIN)',
     description: 'Agrega un nuevo curso, modelo descargable o evento al catálogo de Universitas.',
   })
-  createA(@Body() dto: CreateMatrizADto) {
-    return this.matricesService.createA(dto);
+  @ApiConsumes('multipart/form-data') // <-- Vital para subida de archivos
+  @UseInterceptors(FileInterceptor('imagenBanner'))
+  createA(
+    @Body() dto: CreateMatrizADto,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
+          new FileTypeValidator({ fileType: '.(png|jpeg|jpg|webp|gif)' }),
+        ],
+        fileIsRequired: true, // <-- Hace que la imagen sea obligatoria como pediste
+      }),
+    )
+    file: Express.Multer.File,
+  ) {
+    return this.matricesService.createA(dto, file);
   }
 
   @Get('a')
@@ -59,8 +89,23 @@ export class MatricesController {
     summary: 'Editar producto en Matriz A (solo ADMIN)',
     description: 'Permite actualizar cualquier campo, incluido el estatus activo/inactivo.',
   })
-  updateA(@Param('id') id: string, @Body() dto: UpdateMatrizADto) {
-    return this.matricesService.updateA(id, dto);
+  @ApiConsumes('multipart/form-data') // Allow editing with file
+  @UseInterceptors(FileInterceptor('imagenBanner'))
+  updateA(
+    @Param('id') id: string,
+    @Body() dto: UpdateMatrizADto,
+    @UploadedFile(
+      new ParseFilePipe({
+        validators: [
+          new MaxFileSizeValidator({ maxSize: 5 * 1024 * 1024 }),
+          new FileTypeValidator({ fileType: '.(png|jpeg|jpg|webp|gif)' }),
+        ],
+        fileIsRequired: false,
+      }),
+    )
+    file?: Express.Multer.File,
+  ) {
+    return this.matricesService.updateA(id, dto, file);
   }
 
   @Delete('a/:id')
