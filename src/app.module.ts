@@ -12,6 +12,7 @@ import { MatricesModule } from './matrices/matrices.module';
 import { WorkflowsModule } from './workflows/workflows.module';
 import { ComentariosModule } from './comentarios/comentarios.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
+import { CloudinaryModule } from './cloudinary/cloudinary.module';
 
 @Module({
   imports: [
@@ -26,6 +27,7 @@ import { NotificacionesModule } from './notificaciones/notificaciones.module';
     UsersModule,
     ComentariosModule,
     NotificacionesModule,
+    CloudinaryModule,
   ],
   controllers: [AppController],
   providers: [AppService],

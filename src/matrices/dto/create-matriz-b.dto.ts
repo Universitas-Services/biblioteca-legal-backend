@@ -1,29 +1,40 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsArray, IsBoolean, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { IsArray, IsBoolean, IsNotEmpty, IsOptional, IsString, IsUrl } from 'class-validator';
 
 export class CreateMatrizBDto {
-  @ApiProperty()
+  @ApiProperty({
+    description: 'Título exacto del artículo (renderizado como texto hipervinculado)',
+  })
   @IsString()
   @IsNotEmpty()
-  nombre: string;
+  tituloArticulo: string;
 
-  @ApiProperty({ required: false })
+  @ApiProperty({ description: 'Nombre del especialista o doctrinario autor del artículo' })
   @IsString()
-  @IsOptional()
-  descripcion?: string;
+  @IsNotEmpty()
+  autorArticulo: string;
 
-  @ApiProperty({ type: [String], required: false })
+  @ApiProperty({ description: 'Enlace directo al artículo en el blog WordPress (Ágora)' })
+  @IsUrl({}, { message: 'urlDestinoAgora debe ser una URL válida' })
+  @IsNotEmpty()
+  urlDestinoAgora: string;
+
+  @ApiProperty({
+    type: [String],
+    required: false,
+    description: 'Etiquetas temáticas para el match semántico con el documento legal',
+  })
   @IsArray()
+  @IsString({ each: true })
   @IsOptional()
-  palabrasClave?: string[];
+  categoriasKeywords?: string[];
 
-  @ApiProperty({ required: false, default: true })
+  @ApiProperty({
+    required: false,
+    default: true,
+    description: 'Control de visualización del artículo',
+  })
   @IsBoolean()
   @IsOptional()
   activo?: boolean;
-
-  @ApiProperty({ required: false, default: true })
-  @IsBoolean()
-  @IsOptional()
-  esAgora?: boolean;
 }
