@@ -7,22 +7,86 @@ import {
 import { EstadoDocumento, Role, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
+import { TemasPersonalQueryDto } from './dto/temas-personal-query.dto';
 import { PerfilNivel1Dto } from './dto/perfil-nivel1.dto';
 import { PerfilNivel2Dto } from './dto/perfil-nivel2.dto';
 import { PROFESION_TEMA_MAP } from '../common/constants/profesion-tema.map';
+import { EspecialidadService } from '../common/especialidad/especialidad.service';
 import * as bcrypt from 'bcrypt';
 
 @Injectable()
 export class UsersService {
-  constructor(private prisma: PrismaService) {}
+  constructor(
+    private prisma: PrismaService,
+    private especialidad: EspecialidadService,
+  ) {}
+
+  async listarEspecialidadesDisponibles() {
+    return this.especialidad.listarEspecialidadesDisponibles();
+  }
+
+  /** Resumen de personal asignado por tema (sin contraseñas). */
+  private readonly staffResumenSelect = {
+    id: true,
+    email: true,
+    nombre: true,
+    apellido: true,
+    role: true,
+  } as const;
+
+  async listarTemasConPersonal(query: TemasPersonalQueryDto) {
+    await this.especialidad.ensureTemaGeneralEnCatalogo();
+
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    const [temas, total] = await Promise.all([
+      this.prisma.client.temaPrincipal.findMany({
+        where: { eliminado: false },
+        orderBy: { nombre: 'asc' },
+        skip,
+        take: limit,
+        include: {
+          revisores: {
+            where: { role: { in: [Role.CURADOR, Role.REVISOR] } },
+            select: this.staffResumenSelect,
+            orderBy: [{ role: 'asc' }, { apellido: 'asc' }, { nombre: 'asc' }],
+          },
+        },
+      }),
+      this.prisma.client.temaPrincipal.count({ where: { eliminado: false } }),
+    ]);
+
+    const items = temas.map(tema => {
+      const curadores = tema.revisores.filter(u => u.role === Role.CURADOR);
+      const revisores = tema.revisores.filter(u => u.role === Role.REVISOR);
+      return {
+        id: tema.id,
+        nombre: tema.nombre,
+        slug: tema.slug,
+        gcsUri: tema.gcsUri,
+        curadores,
+        revisores,
+        totalCuradores: curadores.length,
+        totalRevisores: revisores.length,
+      };
+    });
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
 
   async createStaffUser(createStaffDto: CreateStaffDto) {
     const { email, password, role, nombre, apellido, temaIds } = createStaffDto;
 
-    // Validar que REVISOR tenga al menos un tema asignado
-    if (role === Role.REVISOR && (!temaIds || temaIds.length === 0)) {
-      throw new BadRequestException('El rol REVISOR requiere al menos un temaIds asignado');
-    }
+    await this.especialidad.ensureTemaGeneralEnCatalogo();
+    this.especialidad.assertStaffTieneEspecialidades(role, temaIds);
 
     const userExists = await this.prisma.client.user.findUnique({ where: { email } });
     if (userExists) {
@@ -32,7 +96,7 @@ export class UsersService {
     // Validar que cada temaId exista en la BD
     if (temaIds && temaIds.length > 0) {
       const temasExistentes = await this.prisma.client.temaPrincipal.findMany({
-        where: { id: { in: temaIds } },
+        where: { id: { in: temaIds }, eliminado: false },
         select: { id: true },
       });
       if (temasExistentes.length !== temaIds.length) {

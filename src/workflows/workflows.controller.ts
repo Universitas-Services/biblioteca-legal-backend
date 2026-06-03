@@ -25,7 +25,7 @@ export class WorkflowsController {
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.REVISOR, Role.ADMIN)
   @ApiOperation({ summary: 'Publicar documento tras revisión' })
-  publicar(@Param('id') id: string) {
-    return this.workflowsService.publicar(id);
+  publicar(@Param('id') id: string, @CurrentUser() user: JwtPayloadUser) {
+    return this.workflowsService.publicar(id, user.sub);
   }
 }

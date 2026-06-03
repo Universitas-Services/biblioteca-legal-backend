@@ -24,8 +24,8 @@ jobs:
           node-version: '20'
           cache: 'npm'
 
-      - name: Verificar versión de npm (lock generado con npm 10)
-        run: npm --version
+      - name: Usar npm 10.8.2 (misma versión que packageManager)
+        run: npm install -g npm@10.8.2
 
       - name: Instalar dependencias
         run: npm ci
