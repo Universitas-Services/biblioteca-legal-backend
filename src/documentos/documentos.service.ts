@@ -13,6 +13,7 @@ import {
   DOCUMENTO_ESTADO_CAMBIADO,
   DocumentoEstadoCambiadoEvent,
 } from '../common/events/documento-estado.event';
+import { EspecialidadService } from '../common/especialidad/especialidad.service';
 
 @Injectable()
 export class DocumentosService {
@@ -23,6 +24,7 @@ export class DocumentosService {
     private asignacionRevisor: AsignacionRevisorService,
     private categoriasService: CategoriasService,
     private eventEmitter: EventEmitter2,
+    private especialidad: EspecialidadService,
   ) {}
 
   private emitEstadoCambio(documentoId: string, anterior: EstadoDocumento, nuevo: EstadoDocumento) {
@@ -41,6 +43,7 @@ export class DocumentosService {
       data.fechaPublicacion,
     );
     await this.categoriasService.validarIdsAprobadas(data.categoriaIds);
+    await this.especialidad.assertCuradorPuedeSubirTema(curadorId, data.temaPrincipal);
 
     const cloudUrl = await this.storage.uploadDocument(file);
     const revisorAsignadoId = await this.asignacionRevisor.asignarPorTema(data.temaPrincipal);

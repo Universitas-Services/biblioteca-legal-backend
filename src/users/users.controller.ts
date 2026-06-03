@@ -1,8 +1,9 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
 import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { UsersService } from './users.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
+import { TemasPersonalQueryDto } from './dto/temas-personal-query.dto';
 import { PerfilNivel1Dto } from './dto/perfil-nivel1.dto';
 import { PerfilNivel2Dto } from './dto/perfil-nivel2.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -31,6 +32,33 @@ export class UsersController {
   @ApiOperation({ summary: 'Alias: crear personal interno' })
   createStaffAlias(@Body() createStaffDto: CreateStaffDto) {
     return this.usersService.createStaffUser(createStaffDto);
+  }
+
+  @Get('admin/especialidades')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Catálogo de especialidades para alta de staff',
+    description:
+      'Incluye el tema "General" (acceso a todas las áreas). Usar en formularios de CURADOR/REVISOR.',
+  })
+  listarEspecialidades() {
+    return this.usersService.listarEspecialidadesDisponibles();
+  }
+
+  @Get('admin/temas/personal')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Temas con curadores y revisores asignados',
+    description:
+      'Lista cada TemaPrincipal con los CURADOR y REVISOR vinculados por especialidad. ' +
+      'El personal con especialidad "General" aparece solo bajo el tema General.',
+  })
+  listarTemasConPersonal(@Query() query: TemasPersonalQueryDto) {
+    return this.usersService.listarTemasConPersonal(query);
   }
 
   @Put('perfil/nivel-1')

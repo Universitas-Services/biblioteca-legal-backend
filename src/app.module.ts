@@ -13,11 +13,13 @@ import { WorkflowsModule } from './workflows/workflows.module';
 import { ComentariosModule } from './comentarios/comentarios.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
+import { EspecialidadModule } from './common/especialidad/especialidad.module';
 
 @Module({
   imports: [
     ConfigModule.forRoot({ isGlobal: true }),
     EventEmitterModule.forRoot(),
+    EspecialidadModule,
     AuthModule,
     StorageModule,
     CategoriasModule,

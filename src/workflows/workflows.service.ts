@@ -1,8 +1,9 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { EstadoDocumento } from '@prisma/client';
+import { EstadoDocumento, Prisma } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MatchmakerService } from '../matrices/matchmaker.service';
 import { DocumentosService } from '../documentos/documentos.service';
+import { EspecialidadService } from '../common/especialidad/especialidad.service';
 
 @Injectable()
 export class WorkflowsService {
@@ -10,21 +11,28 @@ export class WorkflowsService {
     private prisma: PrismaService,
     private matchmaker: MatchmakerService,
     private documentosService: DocumentosService,
+    private especialidad: EspecialidadService,
   ) {}
 
   async getBandeja(revisorId: string) {
+    const accesoGeneral = await this.especialidad.revisorTieneAccesoGeneral(revisorId);
+
+    const where: Prisma.DocumentoWhereInput = {
+      estado: EstadoDocumento.PENDIENTE_REVISION,
+      eliminado: false,
+      ...(accesoGeneral ? {} : { revisorAsignadoId: revisorId }),
+    };
+
     return this.prisma.client.documento.findMany({
-      where: {
-        revisorAsignadoId: revisorId,
-        estado: EstadoDocumento.PENDIENTE_REVISION,
-        eliminado: false,
-      },
+      where,
       orderBy: { createdAt: 'asc' },
       include: { categorias: true, curador: true },
     });
   }
 
-  async publicar(documentoId: string) {
+  async publicar(documentoId: string, revisorId: string) {
+    await this.especialidad.assertRevisorPuedeGestionarDocumento(revisorId, documentoId);
+
     const documento = await this.documentosService.findOne(documentoId);
 
     if (documento.estado !== EstadoDocumento.PENDIENTE_REVISION) {

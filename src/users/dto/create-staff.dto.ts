@@ -45,7 +45,9 @@ export class CreateStaffDto {
 
   @ApiProperty({
     example: ['123e4567-e89b-12d3-a456-426614174000'],
-    description: 'IDs de los temas principales asignados (obligatorio para REVISOR)',
+    description:
+      'Especialidades (TemaPrincipal). Obligatorio para CURADOR y REVISOR. ' +
+      'Incluya el tema "General" (slug: general) para permitir subir/revisar cualquier área.',
     required: false,
     type: [String],
   })

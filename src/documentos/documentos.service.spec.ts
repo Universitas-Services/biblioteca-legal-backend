@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { ValidarDuplicidadService } from './services/validar-duplicidad.service';
 import { AsignacionRevisorService } from './services/asignacion-revisor.service';
 import { CategoriasService } from '../categorias/categorias.service';
+import { EspecialidadService } from '../common/especialidad/especialidad.service';
 
 describe('DocumentosService', () => {
   let service: DocumentosService;
@@ -27,6 +28,10 @@ describe('DocumentosService', () => {
         { provide: ValidarDuplicidadService, useValue: { validar: jest.fn() } },
         { provide: AsignacionRevisorService, useValue: { asignarPorTema: jest.fn() } },
         { provide: CategoriasService, useValue: { validarIdsAprobadas: jest.fn() } },
+        {
+          provide: EspecialidadService,
+          useValue: { assertCuradorPuedeSubirTema: jest.fn().mockResolvedValue(undefined) },
+        },
         { provide: EventEmitter2, useValue: { emit: jest.fn() } },
       ],
     }).compile();

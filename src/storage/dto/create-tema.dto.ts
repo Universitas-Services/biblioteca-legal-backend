@@ -1,13 +1,6 @@
-import { ApiProperty } from '@nestjs/swagger';
-import { IsNotEmpty, IsString } from 'class-validator';
+import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { IsNotEmpty, IsOptional, IsString } from 'class-validator';
 
-/**
- * DTO para crear una carpeta de tema principal en GCS.
- *
- * Se usa en el endpoint POST /admin/storage/tema.
- * El ValidationPipe global de NestJS valida automáticamente
- * que `nombreTema` sea un string no vacío antes de llegar al controlador.
- */
 export class CreateTemaDto {
   @ApiProperty({
     example: 'Derecho Civil',
@@ -17,4 +10,12 @@ export class CreateTemaDto {
   @IsString({ message: 'El campo "nombreTema" debe ser un string.' })
   @IsNotEmpty({ message: 'El campo "nombreTema" es obligatorio y no puede estar vacío.' })
   nombreTema: string;
+
+  @ApiPropertyOptional({
+    example: 'Normativa relacionada con relaciones civiles y obligaciones.',
+    description: 'Descripción opcional del tema principal.',
+  })
+  @IsString()
+  @IsOptional()
+  descripcion?: string;
 }
