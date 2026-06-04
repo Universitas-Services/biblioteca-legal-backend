@@ -19,6 +19,7 @@ import { Roles } from '../auth/decorators/roles.decorator';
 import { CreateTemaDto } from './dto/create-tema.dto';
 import { UpdateTemaDto } from './dto/update-tema.dto';
 import { CreateSubcarpetaDto } from './dto/create-subcarpeta.dto';
+import { CreateCarpetaInternaDto } from './dto/create-carpeta-interna.dto';
 import { UpdateSubcarpetaDto } from './dto/update-subcarpeta.dto';
 import { StorageListQueryDto } from './dto/storage-list-query.dto';
 import { formatStorageSlug } from './utils/format-storage-slug.util';
@@ -115,5 +116,91 @@ export class StorageController {
   @ApiParam({ name: 'id', type: String, description: 'ID UUID de la subcarpeta' })
   softDeleteSubcarpeta(@Param('id', ParseUUIDPipe) id: string) {
     return this.storageService.softDeleteSubcarpeta(id);
+  }
+
+  // ─── CARPETAS INTERNAS (ANIDADAS) ───────────────────────────────────────────
+
+  @Post('subcarpeta/:subcarpetaId/carpeta-interna')
+  @ApiOperation({
+    summary: 'Crear carpeta interna de primer nivel (BD + GCS)',
+    description: 'Primer nivel bajo un tipo de norma (ej: carpeta A).',
+  })
+  @ApiParam({
+    name: 'subcarpetaId',
+    type: String,
+    description: 'ID UUID de la subcarpeta (tipo de norma)',
+  })
+  createCarpetaInternaRaiz(
+    @Param('subcarpetaId', ParseUUIDPipe) subcarpetaId: string,
+    @Body() dto: CreateCarpetaInternaDto,
+  ) {
+    const slug = formatStorageSlug(dto.nombreCarpeta);
+    this.logger.log(
+      `Carpeta interna raíz en subcarpeta ${subcarpetaId}: "${dto.nombreCarpeta}" → "${slug}"`,
+    );
+    return this.storageService.createCarpetaInternaRaiz(
+      subcarpetaId,
+      dto.nombreCarpeta,
+      slug,
+      dto.descripcion,
+    );
+  }
+
+  @Post('carpeta-interna/:parentId/carpeta-interna')
+  @ApiOperation({
+    summary: 'Crear carpeta interna hija (BD + GCS)',
+    description:
+      'Subcarpeta anidada bajo otra carpeta interna (ej: A.1, A.1.1). Máximo 10 niveles.',
+  })
+  @ApiParam({ name: 'parentId', type: String, description: 'ID UUID de la carpeta interna padre' })
+  createCarpetaInternaHija(
+    @Param('parentId', ParseUUIDPipe) parentId: string,
+    @Body() dto: CreateCarpetaInternaDto,
+  ) {
+    const slug = formatStorageSlug(dto.nombreCarpeta);
+    this.logger.log(`Carpeta interna hija de ${parentId}: "${dto.nombreCarpeta}" → "${slug}"`);
+    return this.storageService.createCarpetaInternaHija(
+      parentId,
+      dto.nombreCarpeta,
+      slug,
+      dto.descripcion,
+    );
+  }
+
+  @Get('subcarpeta/:subcarpetaId/carpetas-internas')
+  @ApiOperation({ summary: 'Listar carpetas internas raíz de una subcarpeta' })
+  @ApiParam({ name: 'subcarpetaId', type: String })
+  findCarpetasInternasRaiz(
+    @Param('subcarpetaId', ParseUUIDPipe) subcarpetaId: string,
+    @Query() query: StorageListQueryDto,
+  ) {
+    return this.storageService.findCarpetasInternasRaiz(subcarpetaId, query.incluirEliminados);
+  }
+
+  @Get('carpeta-interna/:id/hijos')
+  @ApiOperation({ summary: 'Listar hijos directos de una carpeta interna' })
+  @ApiParam({ name: 'id', type: String })
+  findCarpetasInternasHijas(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: StorageListQueryDto,
+  ) {
+    return this.storageService.findCarpetasInternasHijas(id, query.incluirEliminados);
+  }
+
+  @Get('carpeta-interna/:id')
+  @ApiOperation({ summary: 'Obtener una carpeta interna por ID' })
+  @ApiParam({ name: 'id', type: String })
+  findCarpetaInternaById(
+    @Param('id', ParseUUIDPipe) id: string,
+    @Query() query: StorageListQueryDto,
+  ) {
+    return this.storageService.findCarpetaInternaById(id, query.incluirEliminados);
+  }
+
+  @Delete('carpeta-interna/:id')
+  @ApiOperation({ summary: 'Eliminar pasivamente una carpeta interna y sus descendientes' })
+  @ApiParam({ name: 'id', type: String })
+  softDeleteCarpetaInterna(@Param('id', ParseUUIDPipe) id: string) {
+    return this.storageService.softDeleteCarpetaInterna(id);
   }
 }
