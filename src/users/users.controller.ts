@@ -1,8 +1,10 @@
 import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth } from '@nestjs/swagger';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { UsersService } from './users.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
+import { ListUsuariosAdminQueryDto } from './dto/list-usuarios-admin-query.dto';
+import { ListUsuariosAdminResponseDto } from './dto/list-usuarios-admin-response.dto';
 import { TemasPersonalQueryDto } from './dto/temas-personal-query.dto';
 import { PerfilNivel1Dto } from './dto/perfil-nivel1.dto';
 import { PerfilNivel2Dto } from './dto/perfil-nivel2.dto';
@@ -32,6 +34,20 @@ export class UsersController {
   @ApiOperation({ summary: 'Alias: crear personal interno' })
   createStaffAlias(@Body() createStaffDto: CreateStaffDto) {
     return this.usersService.createStaffUser(createStaffDto);
+  }
+
+  @Get('admin/usuarios')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Listar personal interno y administradores',
+    description:
+      'Devuelve nombre, apellido, correo, rol y temas principales (solo CURADOR/REVISOR). Excluye CLIENTE.',
+  })
+  @ApiOkResponse({ type: ListUsuariosAdminResponseDto })
+  listarUsuariosAdmin(@Query() query: ListUsuariosAdminQueryDto) {
+    return this.usersService.listarUsuariosAdmin(query);
   }
 
   @Get('admin/especialidades')
