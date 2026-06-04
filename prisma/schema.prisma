@@ -84,11 +84,35 @@ model SubcarpetaNorma {
   fechaEliminacion DateTime?
   temaPrincipalId  String        // FK al tema padre
   temaPrincipal    TemaPrincipal @relation(fields: [temaPrincipalId], references: [id], onDelete: Cascade)
+  carpetasInternas CarpetaInterna[]
   createdAt        DateTime      @default(now())
   updatedAt        DateTime      @updatedAt
 
   // Un mismo tipo de norma no puede repetirse dentro del mismo tema
   @@unique([temaPrincipalId, slug])
+}
+
+/// Carpeta interna anidada bajo un tipo de norma (SubcarpetaNorma).
+/// Ruta GCS: gs://bucket/tema-principal/{temaSlug}/{subcarpetaSlug}/{slug1}/{slug2}/...
+model CarpetaInterna {
+  id                String           @id @default(uuid())
+  nombre            String
+  slug              String
+  descripcion       String?
+  gcsUri            String
+  nivel             Int
+  eliminado         Boolean          @default(false)
+  fechaEliminacion  DateTime?
+  subcarpetaNormaId String
+  subcarpetaNorma   SubcarpetaNorma  @relation(fields: [subcarpetaNormaId], references: [id], onDelete: Cascade)
+  parentId          String?
+  parent            CarpetaInterna?  @relation("CarpetaInternaHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
+  children          CarpetaInterna[] @relation("CarpetaInternaHierarchy")
+  createdAt         DateTime         @default(now())
+  updatedAt         DateTime         @updatedAt
+
+  @@unique([parentId, slug])
+  @@index([subcarpetaNormaId])
 }
 
 model User {

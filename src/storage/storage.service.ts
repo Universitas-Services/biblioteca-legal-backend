@@ -6,7 +6,7 @@ import {
   BadRequestException,
   Logger,
 } from '@nestjs/common';
-import { Prisma, SubcarpetaNorma, TemaPrincipal } from '@prisma/client';
+import { CarpetaInterna, Prisma, SubcarpetaNorma, TemaPrincipal } from '@prisma/client';
 import { Storage } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
@@ -15,6 +15,8 @@ import { TEMA_ESPECIALIDAD_GENERAL_SLUG } from '../common/constants/tema-especia
 import { formatStorageSlug } from './utils/format-storage-slug.util';
 import { UpdateTemaDto } from './dto/update-tema.dto';
 import { UpdateSubcarpetaDto } from './dto/update-subcarpeta.dto';
+
+const MAX_NIVEL_CARPETA_INTERNA = 10;
 
 @Injectable()
 export class StorageService {
@@ -356,6 +358,10 @@ export class StorageService {
     const fechaEliminacion = new Date();
 
     await this.prisma.client.$transaction([
+      this.prisma.client.carpetaInterna.updateMany({
+        where: { subcarpetaNorma: { temaPrincipalId: id }, eliminado: false },
+        data: { eliminado: true, fechaEliminacion },
+      }),
       this.prisma.client.subcarpetaNorma.updateMany({
         where: { temaPrincipalId: id, eliminado: false },
         data: { eliminado: true, fechaEliminacion },
@@ -496,10 +502,16 @@ export class StorageService {
     await this.getSubcarpetaActivaOrThrow(id);
 
     const fechaEliminacion = new Date();
-    await this.prisma.client.subcarpetaNorma.update({
-      where: { id },
-      data: { eliminado: true, fechaEliminacion },
-    });
+    await this.prisma.client.$transaction([
+      this.prisma.client.carpetaInterna.updateMany({
+        where: { subcarpetaNormaId: id, eliminado: false },
+        data: { eliminado: true, fechaEliminacion },
+      }),
+      this.prisma.client.subcarpetaNorma.update({
+        where: { id },
+        data: { eliminado: true, fechaEliminacion },
+      }),
+    ]);
 
     return {
       message: 'Subcarpeta eliminada de forma pasiva exitosamente',
@@ -518,5 +530,325 @@ export class StorageService {
     }
 
     return subcarpeta;
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // MÉTODOS DE CARPETAS INTERNAS (ANIDADAS)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  private carpetaInternaWhereActivo(incluirEliminados = false): Prisma.CarpetaInternaWhereInput {
+    return incluirEliminados ? {} : { eliminado: false };
+  }
+
+  private buildCarpetaInternaFolderPath(
+    temaSlug: string,
+    subcarpetaSlug: string,
+    carpetaSlugs: string[],
+  ): string {
+    const segmentos = ['tema-principal', temaSlug, subcarpetaSlug, ...carpetaSlugs];
+    return `${segmentos.join('/')}/`;
+  }
+
+  private mapCarpetaInterna(
+    carpeta: CarpetaInterna & {
+      subcarpetaNorma?: SubcarpetaNorma & { temaPrincipal?: TemaPrincipal };
+    },
+    pathSlugs?: string[],
+  ) {
+    const temaSlug = carpeta.subcarpetaNorma?.temaPrincipal?.slug;
+    const subcarpetaSlug = carpeta.subcarpetaNorma?.slug;
+    const slugs = pathSlugs ?? [carpeta.slug];
+    const path =
+      temaSlug && subcarpetaSlug
+        ? this.buildCarpetaInternaFolderPath(temaSlug, subcarpetaSlug, slugs)
+        : undefined;
+
+    return {
+      id: carpeta.id,
+      nombre: carpeta.nombre,
+      slug: carpeta.slug,
+      descripcion: carpeta.descripcion,
+      nivel: carpeta.nivel,
+      parentId: carpeta.parentId,
+      subcarpetaNormaId: carpeta.subcarpetaNormaId,
+      gcsUri: carpeta.gcsUri,
+      path,
+      eliminado: carpeta.eliminado,
+      fechaEliminacion: carpeta.fechaEliminacion,
+      createdAt: carpeta.createdAt,
+      updatedAt: carpeta.updatedAt,
+    };
+  }
+
+  private async getCarpetaSlugsChain(carpetaId: string): Promise<string[]> {
+    const slugs: string[] = [];
+    let currentId: string | null = carpetaId;
+
+    while (currentId) {
+      const carpeta: { slug: string; parentId: string | null } | null =
+        await this.prisma.client.carpetaInterna.findUnique({
+          where: { id: currentId },
+          select: { slug: true, parentId: true },
+        });
+
+      if (!carpeta) break;
+      slugs.unshift(carpeta.slug);
+      currentId = carpeta.parentId;
+    }
+
+    return slugs;
+  }
+
+  private async assertSlugRaizDisponible(subcarpetaNormaId: string, slug: string) {
+    const existente = await this.prisma.client.carpetaInterna.findFirst({
+      where: {
+        subcarpetaNormaId,
+        parentId: null,
+        slug,
+        eliminado: false,
+      },
+    });
+
+    if (existente) {
+      throw new ConflictException(
+        `Ya existe una carpeta interna raíz con el slug '${slug}' en esta subcarpeta.`,
+      );
+    }
+  }
+
+  private async assertSlugHijoDisponible(parentId: string, slug: string) {
+    const existente = await this.prisma.client.carpetaInterna.findFirst({
+      where: {
+        parentId,
+        slug,
+        eliminado: false,
+      },
+    });
+
+    if (existente) {
+      throw new ConflictException(
+        `Ya existe una carpeta interna hija con el slug '${slug}' bajo el mismo padre.`,
+      );
+    }
+  }
+
+  async createCarpetaInternaRaiz(
+    subcarpetaNormaId: string,
+    nombre: string,
+    slug: string,
+    descripcion?: string,
+  ) {
+    const subcarpeta = await this.prisma.client.subcarpetaNorma.findFirst({
+      where: { id: subcarpetaNormaId, eliminado: false },
+      include: { temaPrincipal: true },
+    });
+
+    if (!subcarpeta?.temaPrincipal) {
+      throw new NotFoundException(
+        `La subcarpeta con ID ${subcarpetaNormaId} no existe o fue eliminada.`,
+      );
+    }
+
+    await this.assertSlugRaizDisponible(subcarpetaNormaId, slug);
+
+    const folderPath = this.buildCarpetaInternaFolderPath(
+      subcarpeta.temaPrincipal.slug,
+      subcarpeta.slug,
+      [slug],
+    );
+    const gcsUri = await this.createFolder(folderPath);
+
+    const carpeta = await this.prisma.client.carpetaInterna.create({
+      data: {
+        nombre,
+        slug,
+        gcsUri,
+        descripcion,
+        nivel: 1,
+        subcarpetaNormaId,
+        parentId: null,
+      },
+      include: {
+        subcarpetaNorma: { include: { temaPrincipal: true } },
+      },
+    });
+
+    this.logger.log(
+      `Carpeta interna raíz creada: id=${carpeta.id}, subcarpeta=${subcarpeta.slug}, slug="${slug}"`,
+    );
+    return this.mapCarpetaInterna(carpeta, [slug]);
+  }
+
+  async createCarpetaInternaHija(
+    parentId: string,
+    nombre: string,
+    slug: string,
+    descripcion?: string,
+  ) {
+    const padre = await this.prisma.client.carpetaInterna.findFirst({
+      where: { id: parentId, eliminado: false },
+      include: {
+        subcarpetaNorma: { include: { temaPrincipal: true } },
+      },
+    });
+
+    if (!padre?.subcarpetaNorma?.temaPrincipal) {
+      throw new NotFoundException(
+        `La carpeta interna padre con ID ${parentId} no existe o fue eliminada.`,
+      );
+    }
+
+    if (padre.nivel >= MAX_NIVEL_CARPETA_INTERNA) {
+      throw new BadRequestException(
+        `No se pueden crear más de ${MAX_NIVEL_CARPETA_INTERNA} niveles de carpetas internas.`,
+      );
+    }
+
+    await this.assertSlugHijoDisponible(parentId, slug);
+
+    const slugsPadre = await this.getCarpetaSlugsChain(parentId);
+    const slugsCompletos = [...slugsPadre, slug];
+    const folderPath = this.buildCarpetaInternaFolderPath(
+      padre.subcarpetaNorma.temaPrincipal.slug,
+      padre.subcarpetaNorma.slug,
+      slugsCompletos,
+    );
+    const gcsUri = await this.createFolder(folderPath);
+
+    const carpeta = await this.prisma.client.carpetaInterna.create({
+      data: {
+        nombre,
+        slug,
+        gcsUri,
+        descripcion,
+        nivel: padre.nivel + 1,
+        subcarpetaNormaId: padre.subcarpetaNormaId,
+        parentId,
+      },
+      include: {
+        subcarpetaNorma: { include: { temaPrincipal: true } },
+      },
+    });
+
+    this.logger.log(
+      `Carpeta interna hija creada: id=${carpeta.id}, padre=${parentId}, nivel=${carpeta.nivel}`,
+    );
+    return this.mapCarpetaInterna(carpeta, slugsCompletos);
+  }
+
+  async findCarpetasInternasRaiz(subcarpetaNormaId: string, incluirEliminados = false) {
+    await this.getSubcarpetaActivaOrThrow(subcarpetaNormaId);
+
+    const carpetas = await this.prisma.client.carpetaInterna.findMany({
+      where: {
+        subcarpetaNormaId,
+        parentId: null,
+        ...this.carpetaInternaWhereActivo(incluirEliminados),
+      },
+      orderBy: { nombre: 'asc' },
+      include: {
+        subcarpetaNorma: { include: { temaPrincipal: true } },
+      },
+    });
+
+    return carpetas.map(c => this.mapCarpetaInterna(c, [c.slug]));
+  }
+
+  async findCarpetasInternasHijas(parentId: string, incluirEliminados = false) {
+    await this.getCarpetaInternaActivaOrThrow(parentId);
+
+    const padre = await this.prisma.client.carpetaInterna.findFirst({
+      where: { id: parentId },
+      include: {
+        subcarpetaNorma: { include: { temaPrincipal: true } },
+      },
+    });
+
+    if (!padre) {
+      throw new NotFoundException(`La carpeta interna con ID ${parentId} no existe.`);
+    }
+
+    const slugsPadre = await this.getCarpetaSlugsChain(parentId);
+
+    const hijos = await this.prisma.client.carpetaInterna.findMany({
+      where: {
+        parentId,
+        ...this.carpetaInternaWhereActivo(incluirEliminados),
+      },
+      orderBy: { nombre: 'asc' },
+      include: {
+        subcarpetaNorma: { include: { temaPrincipal: true } },
+      },
+    });
+
+    return hijos.map(h => this.mapCarpetaInterna(h, [...slugsPadre, h.slug]));
+  }
+
+  async findCarpetaInternaById(id: string, incluirEliminados = false) {
+    const carpeta = await this.prisma.client.carpetaInterna.findFirst({
+      where: { id, ...this.carpetaInternaWhereActivo(incluirEliminados) },
+      include: {
+        subcarpetaNorma: { include: { temaPrincipal: true } },
+      },
+    });
+
+    if (!carpeta) {
+      throw new NotFoundException(`La carpeta interna con ID ${id} no existe o fue eliminada.`);
+    }
+
+    const slugs = carpeta.parentId
+      ? [...(await this.getCarpetaSlugsChain(carpeta.parentId)), carpeta.slug]
+      : [carpeta.slug];
+
+    return this.mapCarpetaInterna(carpeta, slugs);
+  }
+
+  async softDeleteCarpetaInterna(id: string) {
+    await this.getCarpetaInternaActivaOrThrow(id);
+
+    const idsToDelete = await this.collectDescendantCarpetaIds(id);
+    const fechaEliminacion = new Date();
+
+    await this.prisma.client.carpetaInterna.updateMany({
+      where: { id: { in: idsToDelete }, eliminado: false },
+      data: { eliminado: true, fechaEliminacion },
+    });
+
+    return {
+      message: 'Carpeta interna eliminada de forma pasiva exitosamente',
+      id,
+      idsEliminados: idsToDelete,
+      fechaEliminacion,
+    };
+  }
+
+  private async collectDescendantCarpetaIds(rootId: string): Promise<string[]> {
+    const ids: string[] = [rootId];
+    let frontier = [rootId];
+
+    while (frontier.length > 0) {
+      const hijos = await this.prisma.client.carpetaInterna.findMany({
+        where: { parentId: { in: frontier }, eliminado: false },
+        select: { id: true },
+      });
+
+      const childIds = hijos.map(h => h.id);
+      ids.push(...childIds);
+      frontier = childIds;
+    }
+
+    return ids;
+  }
+
+  private async getCarpetaInternaActivaOrThrow(id: string) {
+    const carpeta = await this.prisma.client.carpetaInterna.findFirst({
+      where: { id, eliminado: false },
+    });
+
+    if (!carpeta) {
+      throw new NotFoundException(`La carpeta interna con ID ${id} no existe o fue eliminada.`);
+    }
+
+    return carpeta;
   }
 }
