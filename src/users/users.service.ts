@@ -7,6 +7,7 @@ import {
 import { EstadoDocumento, Role, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
+import { ListUsuariosAdminQueryDto } from './dto/list-usuarios-admin-query.dto';
 import { TemasPersonalQueryDto } from './dto/temas-personal-query.dto';
 import { PerfilNivel1Dto } from './dto/perfil-nivel1.dto';
 import { PerfilNivel2Dto } from './dto/perfil-nivel2.dto';
@@ -33,6 +34,77 @@ export class UsersService {
     apellido: true,
     role: true,
   } as const;
+
+  private static readonly ROLES_USUARIOS_ADMIN = [
+    Role.CURADOR,
+    Role.REVISOR,
+    Role.AUDITOR,
+    Role.ADMIN,
+  ] as const;
+
+  private static readonly ROLES_CON_TEMAS = [Role.CURADOR, Role.REVISOR] as const;
+
+  async listarUsuariosAdmin(query: ListUsuariosAdminQueryDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    const where = {
+      role: query.role ?? { in: [...UsersService.ROLES_USUARIOS_ADMIN] },
+    };
+
+    const [usuarios, total] = await Promise.all([
+      this.prisma.client.user.findMany({
+        where,
+        orderBy: [{ role: 'asc' }, { nombre: 'asc' }, { apellido: 'asc' }],
+        skip,
+        take: limit,
+        select: {
+          id: true,
+          nombre: true,
+          apellido: true,
+          email: true,
+          role: true,
+          temasAsignados: {
+            where: { eliminado: false },
+            select: { id: true, nombre: true, slug: true },
+            orderBy: { nombre: 'asc' },
+          },
+        },
+      }),
+      this.prisma.client.user.count({ where }),
+    ]);
+
+    const items = usuarios.map(u => this.mapUsuarioAdminItem(u));
+
+    return {
+      items,
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
+  }
+
+  private mapUsuarioAdminItem(user: {
+    id: string;
+    nombre: string | null;
+    apellido: string | null;
+    email: string;
+    role: Role;
+    temasAsignados: { id: string; nombre: string; slug: string }[];
+  }) {
+    const incluyeTemas = (UsersService.ROLES_CON_TEMAS as readonly Role[]).includes(user.role);
+
+    return {
+      id: user.id,
+      nombre: user.nombre,
+      apellido: user.apellido,
+      correo: user.email,
+      rol: user.role,
+      temasPrincipales: incluyeTemas ? user.temasAsignados : null,
+    };
+  }
 
   async listarTemasConPersonal(query: TemasPersonalQueryDto) {
     await this.especialidad.ensureTemaGeneralEnCatalogo();
