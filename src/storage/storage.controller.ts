@@ -45,6 +45,7 @@ export class StorageController {
   }
 
   @Get('temas')
+  @Roles('ADMIN', 'CURADOR')
   @ApiOperation({ summary: 'Listar temas principales con sus subcarpetas activas' })
   findAllTemas(@Query() query: StorageListQueryDto) {
     return this.storageService.findAllTemas(query.incluirEliminados);
@@ -88,6 +89,7 @@ export class StorageController {
   }
 
   @Get('tema/:temaId/subcarpetas')
+  @Roles('ADMIN', 'CURADOR')
   @ApiOperation({ summary: 'Listar subcarpetas de un tema' })
   @ApiParam({ name: 'temaId', type: String, description: 'ID UUID del tema principal' })
   findSubcarpetas(
@@ -168,6 +170,7 @@ export class StorageController {
   }
 
   @Get('subcarpeta/:subcarpetaId/carpetas-internas')
+  @Roles('ADMIN', 'CURADOR')
   @ApiOperation({ summary: 'Listar carpetas internas raíz de una subcarpeta' })
   @ApiParam({ name: 'subcarpetaId', type: String })
   findCarpetasInternasRaiz(
