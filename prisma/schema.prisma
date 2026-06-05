@@ -39,6 +39,11 @@ enum Profesion {
   OTRO
 }
 
+enum AmbitoTerritorial {
+  NACIONAL
+  ESTADAL
+}
+
 enum TipoNotificacion {
   REFORMADA
   DEROGADA
@@ -62,7 +67,7 @@ model TemaPrincipal {
   nombre           String            @unique // Nombre original (ej: "Contrataciones Públicas")
   slug             String            @unique // Nombre formateado (ej: "contrataciones-publicas")
   descripcion      String?
-  gcsUri           String            // URI nativa de la carpeta en GCS
+  gcsUri           String // URI nativa de la carpeta en GCS
   eliminado        Boolean           @default(false)
   fechaEliminacion DateTime?
   createdAt        DateTime          @default(now())
@@ -75,18 +80,18 @@ model TemaPrincipal {
 /// Cada registro está sincronizado con una carpeta simulada en GCS:
 ///   gs://bucket/tema-principal/{temaSlug}/{slug}/
 model SubcarpetaNorma {
-  id               String        @id @default(uuid())
-  nombre           String        // Tipo de norma (ej: "Ley Orgánica")
-  slug             String        // Nombre formateado (ej: "ley-organica")
+  id               String           @id @default(uuid())
+  nombre           String // Tipo de norma (ej: "Ley Orgánica")
+  slug             String // Nombre formateado (ej: "ley-organica")
   descripcion      String?
-  gcsUri           String        // URI nativa de la carpeta en GCS
-  eliminado        Boolean       @default(false)
+  gcsUri           String // URI nativa de la carpeta en GCS
+  eliminado        Boolean          @default(false)
   fechaEliminacion DateTime?
-  temaPrincipalId  String        // FK al tema padre
-  temaPrincipal    TemaPrincipal @relation(fields: [temaPrincipalId], references: [id], onDelete: Cascade)
+  temaPrincipalId  String // FK al tema padre
+  temaPrincipal    TemaPrincipal    @relation(fields: [temaPrincipalId], references: [id], onDelete: Cascade)
   carpetasInternas CarpetaInterna[]
-  createdAt        DateTime      @default(now())
-  updatedAt        DateTime      @updatedAt
+  createdAt        DateTime         @default(now())
+  updatedAt        DateTime         @updatedAt
 
   // Un mismo tipo de norma no puede repetirse dentro del mismo tema
   @@unique([temaPrincipalId, slug])
@@ -116,39 +121,39 @@ model CarpetaInterna {
 }
 
 model User {
-  id                   String              @id @default(uuid())
-  email                String              @unique
-  password             String
-  role                 Role                @default(CLIENTE)
-  nombre               String?
-  apellido             String?
-  telefono             String?
-  pais                 String?
-  profesion            Profesion?
-  nivelMuro            Int                 @default(0)
-  tokenVersion         Int                 @default(0)
-  consultasRealizadas  Int                 @default(0)
-  temasAsignados       TemaPrincipal[]     @relation("RevisorTemas") // CURADOR y REVISOR (incl. slug "general")
-  createdAt            DateTime            @default(now())
-  updatedAt            DateTime            @updatedAt
-  auditLogs            AuditLog[]
-  favoritos            Favorito[]
-  historialConsultas   HistorialConsulta[]
-  comentariosInternos  ComentarioInterno[]
-  notificaciones       Notificacion[]
-  documentosCurados    Documento[]         @relation("CuradorDocumentos")
-  documentosRevisados  Documento[]         @relation("RevisorDocumentos")
-  categoriasSugeridas  Categoria[]
+  id                  String              @id @default(uuid())
+  email               String              @unique
+  password            String
+  role                Role                @default(CLIENTE)
+  nombre              String?
+  apellido            String?
+  telefono            String?
+  pais                String?
+  profesion           Profesion?
+  nivelMuro           Int                 @default(0)
+  tokenVersion        Int                 @default(0)
+  consultasRealizadas Int                 @default(0)
+  temasAsignados      TemaPrincipal[]     @relation("RevisorTemas") // CURADOR y REVISOR (incl. slug "general")
+  createdAt           DateTime            @default(now())
+  updatedAt           DateTime            @updatedAt
+  auditLogs           AuditLog[]
+  favoritos           Favorito[]
+  historialConsultas  HistorialConsulta[]
+  comentariosInternos ComentarioInterno[]
+  notificaciones      Notificacion[]
+  documentosCurados   Documento[]         @relation("CuradorDocumentos")
+  documentosRevisados Documento[]         @relation("RevisorDocumentos")
+  categoriasSugeridas Categoria[]
 }
 
 model Documento {
-  id                  String           @id @default(uuid())
+  id                  String          @id @default(uuid())
   titulo              String
   tituloIntegro       String
   archivoOriginalUrl  String
-  estado              EstadoDocumento  @default(PENDIENTE_REVISION)
-  ultimaActualizacion DateTime         @updatedAt
-  createdAt           DateTime         @default(now())
+  estado              EstadoDocumento @default(PENDIENTE_REVISION)
+  ultimaActualizacion DateTime        @updatedAt
+  createdAt           DateTime        @default(now())
 
   soloLecturaImagen Boolean  @default(false)
   nombreBreve       String?
@@ -159,10 +164,10 @@ model Documento {
   fechaPublicacion  String?
   numeroGaceta      String?
 
-  esReforma     Boolean    @default(false)
-  reformaAId    String?
-  reformaA      Documento? @relation("ReformasRelation", fields: [reformaAId], references: [id])
-  reformas      Documento[] @relation("ReformasRelation")
+  esReforma  Boolean     @default(false)
+  reformaAId String?
+  reformaA   Documento?  @relation("ReformasRelation", fields: [reformaAId], references: [id])
+  reformas   Documento[] @relation("ReformasRelation")
 
   resumen       String?
   palabrasClave String[]
@@ -170,14 +175,16 @@ model Documento {
   eliminado        Boolean   @default(false)
   fechaEliminacion DateTime?
 
-  curadorId          String?
-  curador            User?   @relation("CuradorDocumentos", fields: [curadorId], references: [id])
-  revisorAsignadoId  String?
-  revisorAsignado    User?   @relation("RevisorDocumentos", fields: [revisorAsignadoId], references: [id])
+  curadorId         String?
+  curador           User?   @relation("CuradorDocumentos", fields: [curadorId], references: [id])
+  revisorAsignadoId String?
+  revisorAsignado   User?   @relation("RevisorDocumentos", fields: [revisorAsignadoId], references: [id])
 
   matrizAId String?
-  matrizA   MatrizA? @relation(fields: [matrizAId], references: [id])
+  matrizA   MatrizA?  @relation(fields: [matrizAId], references: [id])
   matrizB   MatrizB[] @relation("DocumentoMatrizB")
+
+  metadata Metadata?
 
   categorias          Categoria[]
   auditLogs           AuditLog[]
@@ -190,46 +197,46 @@ model Documento {
 }
 
 model Categoria {
-  id           String          @id @default(uuid())
-  nombre       String          @unique
-  estado       EstadoCategoria @default(SUGERIDA)
+  id            String          @id @default(uuid())
+  nombre        String          @unique
+  estado        EstadoCategoria @default(SUGERIDA)
   sugeridoPorId String?
-  sugeridoPor  User?           @relation(fields: [sugeridoPorId], references: [id])
-  createdAt    DateTime        @default(now())
-  updatedAt    DateTime        @updatedAt
-  documentos   Documento[]
+  sugeridoPor   User?           @relation(fields: [sugeridoPorId], references: [id])
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+  documentos    Documento[]
 }
 
 /// Catálogo de Productos y Formación de Universitas.
 /// Alimenta las sugerencias laterales de la vista de documento (Producto/Curso).
 model MatrizA {
   id                 String       @id @default(uuid())
-  nombreProducto     String       // Nombre comercial (ej. "Curso de Gestión Pública")
+  nombreProducto     String // Nombre comercial (ej. "Curso de Gestión Pública")
   tipoSolucion       TipoSolucion // Clasificador cerrado: CURSO, MODELO_DESCARGABLE, EVENTO
-  urlDestino         String       // Enlace de salida hacia la pasarela externa de Universitas
-  categoriasKeywords String[]     // Etiquetas temáticas para el algoritmo de match
+  urlDestino         String // Enlace de salida hacia la pasarela externa de Universitas
+  categoriasKeywords String[] // Etiquetas temáticas para el algoritmo de match
   activo             Boolean      @default(true) // Control de visualización (ADMIN puede editar)
-  
-  // Nuevos campos para Cloudinary
-  imagenBannerUrl      String?    // Enlace al recurso gráfico renderizado en el bloque visual
-  imagenBannerPublicId String?    // Identificador único en Cloudinary para gestión de borrado
 
-  createdAt          DateTime     @default(now())
-  updatedAt          DateTime     @updatedAt
-  documentos         Documento[]
+  // Nuevos campos para Cloudinary
+  imagenBannerUrl      String? // Enlace al recurso gráfico renderizado en el bloque visual
+  imagenBannerPublicId String? // Identificador único en Cloudinary para gestión de borrado
+
+  createdAt  DateTime    @default(now())
+  updatedAt  DateTime    @updatedAt
+  documentos Documento[]
 }
 
 /// Repositorio de Ágora / Lecturas Recomendadas.
 /// Alimenta las sugerencias laterales de la vista de documento (Artículos del blog).
 model MatrizB {
-  id                 String     @id @default(uuid())
-  tituloArticulo     String     // Título exacto renderizado como texto hipervinculado
-  autorArticulo      String     // Nombre del especialista o doctrinario
-  urlDestinoAgora    String     // Enlace directo a la entrada en el blog WordPress (Ágora)
-  categoriasKeywords String[]   // Etiquetas temáticas para el match semántico
-  activo             Boolean    @default(true)
-  createdAt          DateTime   @default(now())
-  updatedAt          DateTime   @updatedAt
+  id                 String      @id @default(uuid())
+  tituloArticulo     String // Título exacto renderizado como texto hipervinculado
+  autorArticulo      String // Nombre del especialista o doctrinario
+  urlDestinoAgora    String // Enlace directo a la entrada en el blog WordPress (Ágora)
+  categoriasKeywords String[] // Etiquetas temáticas para el match semántico
+  activo             Boolean     @default(true)
+  createdAt          DateTime    @default(now())
+  updatedAt          DateTime    @updatedAt
   documentos         Documento[] @relation("DocumentoMatrizB")
 }
 
@@ -286,4 +293,22 @@ model AuditLog {
   documentoId String?
   documento   Documento? @relation(fields: [documentoId], references: [id])
   user        User       @relation(fields: [userId], references: [id])
+}
+
+model Metadata {
+  id                String             @id @default(uuid())
+  temaPrincipal     String?
+  tipoDocumento     String?
+  tipoNorma         String?
+  enteEmisor        String?
+  fechaPublicacion  DateTime?
+  numeroGaceta      String?
+  ambitoTerritorial AmbitoTerritorial?
+  pais              String?
+
+  documentoId String    @unique
+  documento   Documento @relation(fields: [documentoId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
 }
