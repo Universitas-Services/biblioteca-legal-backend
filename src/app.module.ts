@@ -14,6 +14,7 @@ import { ComentariosModule } from './comentarios/comentarios.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { EspecialidadModule } from './common/especialidad/especialidad.module';
+import { MetadatasModule } from './metadatas/metadatas.module';
 
 @Module({
   imports: [
@@ -30,6 +31,7 @@ import { EspecialidadModule } from './common/especialidad/especialidad.module';
     ComentariosModule,
     NotificacionesModule,
     CloudinaryModule,
+    MetadatasModule,
   ],
   controllers: [AppController],
   providers: [AppService],
