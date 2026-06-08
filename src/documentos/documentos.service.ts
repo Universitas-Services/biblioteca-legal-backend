@@ -71,7 +71,7 @@ export class DocumentosService {
       include: { categorias: true, revisorAsignado: true },
     });
 
-    return { message: 'Carga exitosa', documento: nuevoDoc };
+    return { message: 'Carga exitosa', documentoId: nuevoDoc.id, documento: nuevoDoc };
   }
 
   async procesarReforma(
@@ -99,7 +99,11 @@ export class DocumentosService {
       include: { reformaA: true, categorias: true },
     });
 
-    return { message: 'Reforma registrada exitosamente', documento: documentoNuevo };
+    return {
+      message: 'Reforma registrada exitosamente',
+      documentoId: documentoNuevo.id,
+      documento: documentoNuevo,
+    };
   }
 
   async findAll() {
