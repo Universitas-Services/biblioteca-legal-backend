@@ -6,6 +6,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UploadDocumentoDto } from './dto/upload-documento.dto';
 import { UpdateDocumentoDto } from './dto/update-documento.dto';
 import { PublicQueryDto } from './dto/public-query.dto';
+import { AdminDocumentosQueryDto } from './dto/admin-documentos-query.dto';
 import { ValidarDuplicidadService } from './services/validar-duplicidad.service';
 import { AsignacionRevisorService } from './services/asignacion-revisor.service';
 import { CategoriasService } from '../categorias/categorias.service';
@@ -111,6 +112,52 @@ export class DocumentosService {
       where: { eliminado: false },
       orderBy: { ultimaActualizacion: 'desc' },
       include: { categorias: true, revisorAsignado: true },
+    });
+  }
+
+  async findAdminList(query: AdminDocumentosQueryDto) {
+    const where: Prisma.DocumentoWhereInput = {
+      eliminado: false,
+    };
+
+    if (query.curadorId) {
+      where.curadorId = query.curadorId;
+    }
+
+    if (query.conNotas) {
+      where.notasInternas = { some: {} };
+    }
+
+    return this.prisma.client.documento.findMany({
+      where,
+      orderBy: { ultimaActualizacion: 'desc' },
+      include: {
+        curador: { select: { id: true, email: true, nombre: true, apellido: true } },
+        _count: { select: { notasInternas: true } },
+        notasInternas: {
+          orderBy: { fecha: 'desc' },
+          take: 1, // Only return the latest note as a preview
+          include: { autor: { select: { id: true, nombre: true, role: true } } },
+        },
+      },
+    });
+  }
+
+  async findCuradorConNotas(curadorId: string) {
+    return this.prisma.client.documento.findMany({
+      where: {
+        eliminado: false,
+        curadorId,
+        notasInternas: { some: {} },
+      },
+      orderBy: { ultimaActualizacion: 'desc' },
+      include: {
+        _count: { select: { notasInternas: true } },
+        notasInternas: {
+          orderBy: { fecha: 'desc' },
+          include: { autor: { select: { id: true, nombre: true, role: true } } },
+        },
+      },
     });
   }
 

@@ -19,12 +19,20 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { UploadDocumentoDto } from './dto/upload-documento.dto';
 import { UploadDocumentoRequestDto } from './dto/upload-documento-request.dto';
 import { UpdateDocumentoDto } from './dto/update-documento.dto';
 import { ReformaDocumentoDto } from './dto/reforma-documento.dto';
 import { PublicQueryDto } from './dto/public-query.dto';
+import { AdminDocumentosQueryDto } from './dto/admin-documentos-query.dto';
 import { CurrentUser, JwtPayloadUser } from '../auth/decorators/current-user.decorator';
 import { MuroCompletoGuard } from '../auth/guards/muro-completo.guard';
 import { AuditLogInterceptor } from '../audit/audit-log.interceptor';
@@ -88,6 +96,36 @@ export class DocumentosController {
   @ApiOperation({ summary: 'Visor PDF con muro de datos completo' })
   visor(@Param('id') id: string, @CurrentUser() user: JwtPayloadUser) {
     return this.documentosService.registrarVisor(user.sub, id);
+  }
+
+  @Get('admin/list')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Listado de documentos para el panel de Administrador' })
+  @ApiResponse({
+    status: 200,
+    description: 'Retorna los documentos con conteo de notas y preview de la última nota.',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({ status: 403, description: 'Prohibido, requiere rol ADMIN.' })
+  findAdminList(@Query() query: AdminDocumentosQueryDto) {
+    return this.documentosService.findAdminList(query);
+  }
+
+  @Get('curador/con-notas')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CURADOR)
+  @ApiOperation({ summary: 'Bandeja del Curador: Listado de sus documentos con notas internas.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Retorna los documentos asignados al curador que contengan notas.',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({ status: 403, description: 'Prohibido, requiere rol CURADOR.' })
+  findCuradorConNotas(@CurrentUser() user: JwtPayloadUser) {
+    return this.documentosService.findCuradorConNotas(user.sub);
   }
 
   @Get()
