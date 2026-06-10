@@ -201,7 +201,7 @@ export class DocumentosController {
   @Put('editar/:id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.REVISOR, Role.ADMIN)
+  @Roles(Role.CURADOR, Role.REVISOR, Role.ADMIN)
   @UseInterceptors(FileInterceptor('file'), AuditLogInterceptor)
   @ApiConsumes('multipart/form-data')
   editar(
