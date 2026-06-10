@@ -1,5 +1,5 @@
-import { Body, Controller, Get, Param, Post, Put, Query, UseGuards } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse } from '@nestjs/swagger';
+import { Body, Controller, Get, Param, Post, Put, Query, UseGuards, Delete } from '@nestjs/common';
+import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiParam } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { UsersService } from './users.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
@@ -75,6 +75,35 @@ export class UsersController {
   })
   listarTemasConPersonal(@Query() query: TemasPersonalQueryDto) {
     return this.usersService.listarTemasConPersonal(query);
+  }
+
+  @Post('admin/temas/:temaId/personal/:userId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Asignar un curador o revisor a un tema principal',
+    description:
+      'Relaciona a un usuario (que debe tener rol CURADOR o REVISOR) con un TemaPrincipal específico.',
+  })
+  @ApiParam({ name: 'temaId', description: 'UUID del tema principal' })
+  @ApiParam({ name: 'userId', description: 'UUID del usuario a asignar' })
+  asignarPersonalTema(@Param('temaId') temaId: string, @Param('userId') userId: string) {
+    return this.usersService.agregarPersonalTema(temaId, userId);
+  }
+
+  @Delete('admin/temas/:temaId/personal/:userId')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Remover un curador o revisor de un tema principal',
+    description: 'Desvincula a un usuario de un TemaPrincipal específico.',
+  })
+  @ApiParam({ name: 'temaId', description: 'UUID del tema principal' })
+  @ApiParam({ name: 'userId', description: 'UUID del usuario a desvincular' })
+  removerPersonalTema(@Param('temaId') temaId: string, @Param('userId') userId: string) {
+    return this.usersService.removerPersonalTema(temaId, userId);
   }
 
   @Put('perfil/nivel-1')

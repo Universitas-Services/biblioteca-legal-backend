@@ -41,9 +41,13 @@ export class NotasInternasController {
 
   @Delete(':id')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.ADMIN, Role.REVISOR)
-  @ApiOperation({ summary: 'Eliminar una nota interna' })
-  @ApiResponse({ status: 200, description: 'Nota interna eliminada.' })
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Eliminar una nota interna (Exclusivo para Administradores)' })
+  @ApiResponse({ status: 200, description: 'Nota interna eliminada exitosamente.' })
+  @ApiResponse({
+    status: 403,
+    description: 'Prohibido. Solo el rol ADMIN puede ejecutar esta acción.',
+  })
   @ApiResponse({ status: 404, description: 'Nota interna no encontrada.' })
   remove(@Param('id') id: string) {
     return this.notasInternasService.remove(id);

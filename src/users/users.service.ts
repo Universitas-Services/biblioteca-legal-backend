@@ -154,6 +154,61 @@ export class UsersService {
     };
   }
 
+  async agregarPersonalTema(temaId: string, userId: string) {
+    const tema = await this.prisma.client.temaPrincipal.findUnique({
+      where: { id: temaId },
+    });
+    if (!tema || tema.eliminado) {
+      throw new NotFoundException('Tema principal no encontrado');
+    }
+
+    const user = await this.prisma.client.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+    if (user.role !== Role.CURADOR && user.role !== Role.REVISOR) {
+      throw new BadRequestException(
+        'El usuario debe tener rol CURADOR o REVISOR para ser asignado a un tema',
+      );
+    }
+
+    await this.prisma.client.temaPrincipal.update({
+      where: { id: temaId },
+      data: {
+        revisores: { connect: { id: userId } },
+      },
+    });
+
+    return { message: 'Usuario asignado al tema correctamente' };
+  }
+
+  async removerPersonalTema(temaId: string, userId: string) {
+    const tema = await this.prisma.client.temaPrincipal.findUnique({
+      where: { id: temaId },
+    });
+    if (!tema || tema.eliminado) {
+      throw new NotFoundException('Tema principal no encontrado');
+    }
+
+    const user = await this.prisma.client.user.findUnique({
+      where: { id: userId },
+    });
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    await this.prisma.client.temaPrincipal.update({
+      where: { id: temaId },
+      data: {
+        revisores: { disconnect: { id: userId } },
+      },
+    });
+
+    return { message: 'Usuario removido del tema correctamente' };
+  }
+
   async createStaffUser(createStaffDto: CreateStaffDto) {
     const { email, password, role, nombre, apellido, temaIds } = createStaffDto;
 
