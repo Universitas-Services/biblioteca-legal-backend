@@ -16,6 +16,7 @@ enum Role {
 }
 
 enum EstadoDocumento {
+  BORRADOR
   PENDIENTE_REVISION
   VIGENTE
   REFORMADA
@@ -139,7 +140,7 @@ model User {
   auditLogs           AuditLog[]
   favoritos           Favorito[]
   historialConsultas  HistorialConsulta[]
-  comentariosInternos ComentarioInterno[]
+  notasInternas       NotaInterna[]
   notificaciones      Notificacion[]
   documentosCurados   Documento[]         @relation("CuradorDocumentos")
   documentosRevisados Documento[]         @relation("RevisorDocumentos")
@@ -190,7 +191,7 @@ model Documento {
   auditLogs           AuditLog[]
   favoritos           Favorito[]
   historialConsultas  HistorialConsulta[]
-  comentariosInternos ComentarioInterno[]
+  notasInternas       NotaInterna[]
   notificaciones      Notificacion[]
 
   @@index([tituloIntegro, enteEmisor, fechaPublicacion])
@@ -262,7 +263,7 @@ model Favorito {
   @@unique([userId, documentoId])
 }
 
-model ComentarioInterno {
+model NotaInterna {
   id          String    @id @default(uuid())
   texto       String
   autorId     String

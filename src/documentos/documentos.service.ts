@@ -6,6 +6,14 @@ import { PrismaService } from '../prisma/prisma.service';
 import { UploadDocumentoDto } from './dto/upload-documento.dto';
 import { UpdateDocumentoDto } from './dto/update-documento.dto';
 import { PublicQueryDto } from './dto/public-query.dto';
+import { AdminDocumentosQueryDto } from './dto/admin-documentos-query.dto';
+import {
+  CuradorDocumentosQueryDto,
+  CuradorFiltroEstado,
+  CuradorFiltroTiempo,
+} from './dto/curador-documentos-query.dto';
+import { UploadBorradorDto } from './dto/upload-borrador.dto';
+import { PublicarBorradorDto } from './dto/publicar-borrador.dto';
 import { ValidarDuplicidadService } from './services/validar-duplicidad.service';
 import { AsignacionRevisorService } from './services/asignacion-revisor.service';
 import { CategoriasService } from '../categorias/categorias.service';
@@ -106,12 +114,204 @@ export class DocumentosService {
     };
   }
 
+  async procesarCargaBorrador(
+    file: Express.Multer.File,
+    data: UploadBorradorDto,
+    curadorId: string,
+  ) {
+    if (data.enteEmisor && data.fechaPublicacion) {
+      await this.validarDuplicidad.validar(
+        data.tituloIntegro,
+        data.enteEmisor,
+        data.fechaPublicacion,
+      );
+    }
+
+    // Subir a la carpeta 'borradores' en GCS
+    const cloudUrl = await this.storage.uploadDocument(file, 'borradores');
+
+    const nuevoDoc = await this.prisma.client.documento.create({
+      data: {
+        titulo: data.titulo,
+        tituloIntegro: data.tituloIntegro,
+        archivoOriginalUrl: cloudUrl,
+        estado: EstadoDocumento.BORRADOR,
+        soloLecturaImagen: data.soloLecturaImagen ?? false,
+        nombreBreve: data.nombreBreve,
+        tipoNorma: data.tipoNorma,
+        enteEmisor: data.enteEmisor,
+        fechaPublicacion: data.fechaPublicacion,
+        numeroGaceta: data.numeroGaceta,
+        resumen: data.resumen,
+        etiquetas: data.etiquetas ?? [],
+        palabrasClave: data.palabrasClave ?? [],
+        curadorId,
+      },
+    });
+
+    return {
+      message: 'Borrador guardado exitosamente',
+      documentoId: nuevoDoc.id,
+      documento: nuevoDoc,
+    };
+  }
+
+  async publicarBorrador(documentoId: string, data: PublicarBorradorDto, curadorId: string) {
+    const documento = await this.findOne(documentoId);
+
+    if (documento.curadorId !== curadorId) {
+      throw new Error('No tienes permisos para publicar este borrador');
+    }
+    if (documento.estado !== EstadoDocumento.BORRADOR) {
+      throw new Error('El documento no está en estado BORRADOR');
+    }
+
+    await this.categoriasService.validarIdsAprobadas(data.categoriaIds);
+    await this.especialidad.assertCuradorPuedeSubirTema(curadorId, data.temaPrincipal);
+
+    // Mover de la carpeta 'borradores' a la carpeta 'documentos'
+    const newCloudUrl = await this.storage.moveFile(documento.archivoOriginalUrl, 'documentos');
+    const revisorAsignadoId = await this.asignacionRevisor.asignarPorTema(data.temaPrincipal);
+
+    const updatedDoc = await this.prisma.client.documento.update({
+      where: { id: documentoId },
+      data: {
+        estado: EstadoDocumento.PENDIENTE_REVISION,
+        temaPrincipal: data.temaPrincipal,
+        archivoOriginalUrl: newCloudUrl,
+        revisorAsignadoId,
+        categorias: { connect: data.categoriaIds.map(id => ({ id })) },
+      },
+      include: { categorias: true, revisorAsignado: true },
+    });
+
+    this.emitEstadoCambio(
+      documentoId,
+      EstadoDocumento.BORRADOR,
+      EstadoDocumento.PENDIENTE_REVISION,
+    );
+
+    return {
+      message: 'Borrador publicado exitosamente',
+      documentoId: updatedDoc.id,
+      documento: updatedDoc,
+    };
+  }
+
   async findAll() {
     return this.prisma.client.documento.findMany({
       where: { eliminado: false },
       orderBy: { ultimaActualizacion: 'desc' },
       include: { categorias: true, revisorAsignado: true },
     });
+  }
+
+  async findAdminList(query: AdminDocumentosQueryDto) {
+    const where: Prisma.DocumentoWhereInput = {
+      eliminado: false,
+    };
+
+    if (query.curadorId) {
+      where.curadorId = query.curadorId;
+    }
+
+    if (query.conNotas) {
+      where.notasInternas = { some: {} };
+    }
+
+    return this.prisma.client.documento.findMany({
+      where,
+      orderBy: { ultimaActualizacion: 'desc' },
+      include: {
+        curador: { select: { id: true, email: true, nombre: true, apellido: true } },
+        _count: { select: { notasInternas: true } },
+        notasInternas: {
+          orderBy: { fecha: 'desc' },
+          take: 1, // Only return the latest note as a preview
+          include: { autor: { select: { id: true, nombre: true, role: true } } },
+        },
+      },
+    });
+  }
+
+  async findCuradorConNotas(curadorId: string) {
+    return this.prisma.client.documento.findMany({
+      where: {
+        eliminado: false,
+        curadorId,
+        notasInternas: { some: {} },
+      },
+      orderBy: { ultimaActualizacion: 'desc' },
+      include: {
+        _count: { select: { notasInternas: true } },
+        notasInternas: {
+          orderBy: { fecha: 'desc' },
+          include: { autor: { select: { id: true, nombre: true, role: true } } },
+        },
+      },
+    });
+  }
+
+  async findCuradorList(curadorId: string, query: CuradorDocumentosQueryDto) {
+    const page = query.page ?? 1;
+    const limit = query.limit ?? 10;
+    const skip = (page - 1) * limit;
+
+    const where: Prisma.DocumentoWhereInput = {
+      eliminado: false,
+      curadorId,
+    };
+
+    if (query.busqueda) {
+      where.titulo = { contains: query.busqueda, mode: 'insensitive' };
+    }
+
+    if (query.estado) {
+      switch (query.estado) {
+        case CuradorFiltroEstado.PUBLICADOS:
+          where.estado = {
+            in: [EstadoDocumento.VIGENTE, EstadoDocumento.REFORMADA, EstadoDocumento.DEROGADA],
+          };
+          break;
+        case CuradorFiltroEstado.EN_REVISION:
+          where.estado = EstadoDocumento.PENDIENTE_REVISION;
+          break;
+        case CuradorFiltroEstado.BORRADORES:
+          where.estado = EstadoDocumento.BORRADOR;
+          break;
+        case CuradorFiltroEstado.TODOS:
+        default:
+          break;
+      }
+    }
+
+    if (query.tiempo) {
+      const dateLimit = new Date();
+      if (query.tiempo === CuradorFiltroTiempo.SIETE_DIAS) {
+        dateLimit.setDate(dateLimit.getDate() - 7);
+      } else if (query.tiempo === CuradorFiltroTiempo.TREINTA_DIAS) {
+        dateLimit.setDate(dateLimit.getDate() - 30);
+      } else if (query.tiempo === CuradorFiltroTiempo.TRES_MESES) {
+        dateLimit.setMonth(dateLimit.getMonth() - 3);
+      }
+      where.createdAt = { gte: dateLimit };
+    }
+
+    const [items, total] = await Promise.all([
+      this.prisma.client.documento.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { ultimaActualizacion: 'desc' },
+        include: {
+          categorias: { select: { id: true, nombre: true } },
+          revisorAsignado: { select: { id: true, nombre: true, apellido: true } },
+        },
+      }),
+      this.prisma.client.documento.count({ where }),
+    ]);
+
+    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async findPublic(query: PublicQueryDto) {

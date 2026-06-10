@@ -10,7 +10,7 @@ import { UsersModule } from './users/users.module';
 import { CategoriasModule } from './categorias/categorias.module';
 import { MatricesModule } from './matrices/matrices.module';
 import { WorkflowsModule } from './workflows/workflows.module';
-import { ComentariosModule } from './comentarios/comentarios.module';
+import { NotasInternasModule } from './notas-internas/notas-internas.module';
 import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { EspecialidadModule } from './common/especialidad/especialidad.module';
@@ -28,7 +28,7 @@ import { MetadatasModule } from './metadatas/metadatas.module';
     DocumentosModule,
     WorkflowsModule,
     UsersModule,
-    ComentariosModule,
+    NotasInternasModule,
     NotificacionesModule,
     CloudinaryModule,
     MetadatasModule,

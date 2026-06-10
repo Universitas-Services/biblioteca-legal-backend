@@ -19,12 +19,23 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { Role } from '@prisma/client';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiConsumes, ApiBody } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiConsumes,
+  ApiBody,
+  ApiResponse,
+} from '@nestjs/swagger';
 import { UploadDocumentoDto } from './dto/upload-documento.dto';
 import { UploadDocumentoRequestDto } from './dto/upload-documento-request.dto';
 import { UpdateDocumentoDto } from './dto/update-documento.dto';
 import { ReformaDocumentoDto } from './dto/reforma-documento.dto';
 import { PublicQueryDto } from './dto/public-query.dto';
+import { AdminDocumentosQueryDto } from './dto/admin-documentos-query.dto';
+import { CuradorDocumentosQueryDto } from './dto/curador-documentos-query.dto';
+import { UploadBorradorDto } from './dto/upload-borrador.dto';
+import { PublicarBorradorDto } from './dto/publicar-borrador.dto';
 import { CurrentUser, JwtPayloadUser } from '../auth/decorators/current-user.decorator';
 import { MuroCompletoGuard } from '../auth/guards/muro-completo.guard';
 import { AuditLogInterceptor } from '../audit/audit-log.interceptor';
@@ -81,6 +92,34 @@ export class DocumentosController {
     return this.documentosService.procesarReforma(file, uploadData, leyViejaId, user.sub);
   }
 
+  @Post('borrador')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Subir documento como borrador (Solo Curador)' })
+  @ApiConsumes('multipart/form-data')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CURADOR)
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadBorrador(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: UploadBorradorDto,
+    @CurrentUser() user: JwtPayloadUser,
+  ) {
+    return this.documentosService.procesarCargaBorrador(file, body, user.sub);
+  }
+
+  @Patch('borrador/:id/publicar')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Publicar borrador (Pasa a Pendiente de Revisión)' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CURADOR)
+  async publicarBorrador(
+    @Param('id') id: string,
+    @Body() body: PublicarBorradorDto,
+    @CurrentUser() user: JwtPayloadUser,
+  ) {
+    return this.documentosService.publicarBorrador(id, body, user.sub);
+  }
+
   @Get('visor/:id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard, MuroCompletoGuard)
@@ -88,6 +127,49 @@ export class DocumentosController {
   @ApiOperation({ summary: 'Visor PDF con muro de datos completo' })
   visor(@Param('id') id: string, @CurrentUser() user: JwtPayloadUser) {
     return this.documentosService.registrarVisor(user.sub, id);
+  }
+
+  @Get('admin/list')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({ summary: 'Listado de documentos para el panel de Administrador' })
+  @ApiResponse({
+    status: 200,
+    description: 'Retorna los documentos con conteo de notas y preview de la última nota.',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({ status: 403, description: 'Prohibido, requiere rol ADMIN.' })
+  findAdminList(@Query() query: AdminDocumentosQueryDto) {
+    return this.documentosService.findAdminList(query);
+  }
+
+  @Get('curador/con-notas')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CURADOR)
+  @ApiOperation({ summary: 'Bandeja del Curador: Listado de sus documentos con notas internas.' })
+  @ApiResponse({
+    status: 200,
+    description: 'Retorna los documentos asignados al curador que contengan notas.',
+  })
+  @ApiResponse({ status: 401, description: 'No autorizado.' })
+  @ApiResponse({ status: 403, description: 'Prohibido, requiere rol CURADOR.' })
+  findCuradorConNotas(@CurrentUser() user: JwtPayloadUser) {
+    return this.documentosService.findCuradorConNotas(user.sub);
+  }
+
+  @Get('curador/list')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CURADOR)
+  @ApiOperation({ summary: 'Listado de documentos del curador con filtros, búsqueda y paginación' })
+  @ApiResponse({
+    status: 200,
+    description: 'Retorna los documentos del curador filtrados y paginados.',
+  })
+  findCuradorList(@Query() query: CuradorDocumentosQueryDto, @CurrentUser() user: JwtPayloadUser) {
+    return this.documentosService.findCuradorList(user.sub, query);
   }
 
   @Get()
@@ -119,7 +201,7 @@ export class DocumentosController {
   @Put('editar/:id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.REVISOR, Role.ADMIN)
+  @Roles(Role.CURADOR, Role.REVISOR, Role.ADMIN)
   @UseInterceptors(FileInterceptor('file'), AuditLogInterceptor)
   @ApiConsumes('multipart/form-data')
   editar(

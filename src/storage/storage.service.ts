@@ -130,6 +130,50 @@ export class StorageService {
   }
 
   /**
+   * Mueve un archivo dentro de Google Cloud Storage de una ubicación a otra.
+   * Útil para publicar borradores (mover de 'borradores/' a la carpeta final).
+   *
+   * @param sourceGcsUri - URI nativa original (ej: `gs://bucket/borradores/archivo.pdf`).
+   * @param destinationFolder - Carpeta destino en GCS (ej: `documentos`).
+   * @returns La nueva URI nativa de GCS en formato `gs://bucket/ruta`.
+   */
+  async moveFile(sourceGcsUri: string, destinationFolder: string): Promise<string> {
+    try {
+      const prefix = `gs://${this.bucketName}/`;
+
+      if (!sourceGcsUri.startsWith(prefix)) {
+        throw new Error(
+          `La URI proporcionada no pertenece al bucket configurado. Se esperaba prefijo: ${prefix}`,
+        );
+      }
+
+      const sourcePath = sourceGcsUri.slice(prefix.length);
+      const fileName = path.basename(sourcePath);
+      const destinationPath = `${destinationFolder}/${fileName}`;
+
+      const bucket = this.storage.bucket(this.bucketName);
+      const sourceFile = bucket.file(sourcePath);
+      const destinationFile = bucket.file(destinationPath);
+
+      // Usar el método move de GCS
+      await sourceFile.move(destinationFile);
+
+      const newGcsUri = `gs://${this.bucketName}/${destinationPath}`;
+      this.logger.log(`Archivo movido en GCS: de ${sourcePath} a ${destinationPath}`);
+      return newGcsUri;
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(
+        `Error al mover archivo en GCS: ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        `Error al mover el archivo en Google Cloud Storage: ${message}`,
+      );
+    }
+  }
+
+  /**
    * Crea una carpeta simulada en Google Cloud Storage.
    *
    * En GCS no existen carpetas reales; se simula la jerarquía creando un objeto
