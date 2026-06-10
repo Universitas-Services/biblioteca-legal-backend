@@ -33,6 +33,9 @@ import { UpdateDocumentoDto } from './dto/update-documento.dto';
 import { ReformaDocumentoDto } from './dto/reforma-documento.dto';
 import { PublicQueryDto } from './dto/public-query.dto';
 import { AdminDocumentosQueryDto } from './dto/admin-documentos-query.dto';
+import { CuradorDocumentosQueryDto } from './dto/curador-documentos-query.dto';
+import { UploadBorradorDto } from './dto/upload-borrador.dto';
+import { PublicarBorradorDto } from './dto/publicar-borrador.dto';
 import { CurrentUser, JwtPayloadUser } from '../auth/decorators/current-user.decorator';
 import { MuroCompletoGuard } from '../auth/guards/muro-completo.guard';
 import { AuditLogInterceptor } from '../audit/audit-log.interceptor';
@@ -89,6 +92,34 @@ export class DocumentosController {
     return this.documentosService.procesarReforma(file, uploadData, leyViejaId, user.sub);
   }
 
+  @Post('borrador')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Subir documento como borrador (Solo Curador)' })
+  @ApiConsumes('multipart/form-data')
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CURADOR)
+  @UseInterceptors(FileInterceptor('file'))
+  async uploadBorrador(
+    @UploadedFile() file: Express.Multer.File,
+    @Body() body: UploadBorradorDto,
+    @CurrentUser() user: JwtPayloadUser,
+  ) {
+    return this.documentosService.procesarCargaBorrador(file, body, user.sub);
+  }
+
+  @Patch('borrador/:id/publicar')
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Publicar borrador (Pasa a Pendiente de Revisión)' })
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CURADOR)
+  async publicarBorrador(
+    @Param('id') id: string,
+    @Body() body: PublicarBorradorDto,
+    @CurrentUser() user: JwtPayloadUser,
+  ) {
+    return this.documentosService.publicarBorrador(id, body, user.sub);
+  }
+
   @Get('visor/:id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard, MuroCompletoGuard)
@@ -126,6 +157,19 @@ export class DocumentosController {
   @ApiResponse({ status: 403, description: 'Prohibido, requiere rol CURADOR.' })
   findCuradorConNotas(@CurrentUser() user: JwtPayloadUser) {
     return this.documentosService.findCuradorConNotas(user.sub);
+  }
+
+  @Get('curador/list')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.CURADOR)
+  @ApiOperation({ summary: 'Listado de documentos del curador con filtros, búsqueda y paginación' })
+  @ApiResponse({
+    status: 200,
+    description: 'Retorna los documentos del curador filtrados y paginados.',
+  })
+  findCuradorList(@Query() query: CuradorDocumentosQueryDto, @CurrentUser() user: JwtPayloadUser) {
+    return this.documentosService.findCuradorList(user.sub, query);
   }
 
   @Get()

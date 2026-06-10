@@ -16,6 +16,7 @@ enum Role {
 }
 
 enum EstadoDocumento {
+  BORRADOR
   PENDIENTE_REVISION
   VIGENTE
   REFORMADA
