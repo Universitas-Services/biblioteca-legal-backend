@@ -4,7 +4,7 @@ import {
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
-import { EstadoDocumento, Role, User } from '@prisma/client';
+import { EstadoDocumento, EstadoLegal, Role, User } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
 import { ListUsuariosAdminQueryDto } from './dto/list-usuarios-admin-query.dto';
@@ -43,6 +43,36 @@ export class UsersService {
   ] as const;
 
   private static readonly ROLES_CON_TEMAS = [Role.CURADOR, Role.REVISOR] as const;
+
+  async getMeProfile(userId: string) {
+    const user = await this.prisma.client.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        nombre: true,
+        apellido: true,
+        telefono: true,
+        pais: true,
+        consultasRealizadas: true,
+        temasAsignados: {
+          where: { eliminado: false },
+          select: {
+            id: true,
+            nombre: true,
+            slug: true,
+          },
+        },
+      },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    return user;
+  }
 
   async listarUsuariosAdmin(query: ListUsuariosAdminQueryDto) {
     const page = query.page ?? 1;
@@ -324,7 +354,8 @@ export class UsersService {
     const leyesRecientes = await this.prisma.client.documento.findMany({
       where: {
         eliminado: false,
-        estado: EstadoDocumento.VIGENTE,
+        estado: EstadoDocumento.PUBLICADO,
+        estadoLegal: EstadoLegal.VIGENTE,
         temaPrincipal: tema,
       },
       orderBy: { ultimaActualizacion: 'desc' },

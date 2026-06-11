@@ -37,7 +37,7 @@ export class AuditLogInterceptor implements NestInterceptor {
       where: { id: documentoId },
     });
 
-    if (!documento || documento.estado !== EstadoDocumento.VIGENTE) return;
+    if (!documento || documento.estado !== EstadoDocumento.PUBLICADO) return;
 
     await this.prisma.client.auditLog.create({
       data: {

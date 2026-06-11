@@ -15,8 +15,8 @@ export class WorkflowsController {
 
   @Get('bandeja')
   @UseGuards(JwtAuthGuard, RolesGuard)
-  @Roles(Role.REVISOR)
-  @ApiOperation({ summary: 'Bandeja de entrada del revisor' })
+  @Roles(Role.REVISOR, Role.ADMIN)
+  @ApiOperation({ summary: 'Bandeja de entrada (Revisor/Admin)' })
   bandeja(@CurrentUser() user: JwtPayloadUser) {
     return this.workflowsService.getBandeja(user.sub);
   }
@@ -24,7 +24,11 @@ export class WorkflowsController {
   @Post('publicar/:id')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.REVISOR, Role.ADMIN)
-  @ApiOperation({ summary: 'Publicar documento tras revisión' })
+  @ApiOperation({
+    summary: 'Publicar documento tras revisión',
+    description:
+      'Cambia el estado del documento de PENDIENTE_REVISION a PUBLICADO y genera las recomendaciones cruzadas (matriz A y B). El estado legal (VIGENTE, etc.) se gestionará en otro proceso.',
+  })
   publicar(@Param('id') id: string, @CurrentUser() user: JwtPayloadUser) {
     return this.workflowsService.publicar(id, user.sub);
   }

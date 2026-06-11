@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
-import { EstadoDocumento, Prisma } from '@prisma/client';
+import { EstadoDocumento, EstadoLegal, Prisma } from '@prisma/client';
 import { StorageService } from '../storage/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadDocumentoDto } from './dto/upload-documento.dto';
@@ -21,6 +21,10 @@ import {
   DOCUMENTO_ESTADO_CAMBIADO,
   DocumentoEstadoCambiadoEvent,
 } from '../common/events/documento-estado.event';
+import {
+  DOCUMENTO_ESTADO_LEGAL_CAMBIADO,
+  DocumentoEstadoLegalCambiadoEvent,
+} from '../common/events/documento-estado-legal.event';
 import { EspecialidadService } from '../common/especialidad/especialidad.service';
 
 @Injectable()
@@ -40,6 +44,19 @@ export class DocumentosService {
       this.eventEmitter.emit(
         DOCUMENTO_ESTADO_CAMBIADO,
         new DocumentoEstadoCambiadoEvent(documentoId, anterior, nuevo),
+      );
+    }
+  }
+
+  private emitEstadoLegalCambio(
+    documentoId: string,
+    anterior: EstadoLegal | null,
+    nuevo: EstadoLegal,
+  ) {
+    if (anterior !== nuevo) {
+      this.eventEmitter.emit(
+        DOCUMENTO_ESTADO_LEGAL_CAMBIADO,
+        new DocumentoEstadoLegalCambiadoEvent(documentoId, anterior, nuevo),
       );
     }
   }
@@ -91,12 +108,12 @@ export class DocumentosService {
     const leyVieja = await this.findOne(leyViejaId);
     const resultado = await this.procesarCarga(file, data, curadorId);
 
-    const estadoAnterior = leyVieja.estado;
+    const estadoAnterior = leyVieja.estadoLegal;
     await this.prisma.client.documento.update({
       where: { id: leyViejaId },
-      data: { estado: EstadoDocumento.REFORMADA },
+      data: { estadoLegal: EstadoLegal.REFORMADA },
     });
-    this.emitEstadoCambio(leyViejaId, estadoAnterior, EstadoDocumento.REFORMADA);
+    this.emitEstadoLegalCambio(leyViejaId, estadoAnterior, EstadoLegal.REFORMADA);
 
     const documentoNuevo = await this.prisma.client.documento.update({
       where: { id: resultado.documento.id },
@@ -127,6 +144,14 @@ export class DocumentosService {
       );
     }
 
+    if (data.categoriaIds?.length) {
+      await this.categoriasService.validarIdsAprobadas(data.categoriaIds);
+    }
+
+    if (data.temaPrincipal) {
+      await this.especialidad.assertCuradorPuedeSubirTema(curadorId, data.temaPrincipal);
+    }
+
     // Subir a la carpeta 'borradores' en GCS
     const cloudUrl = await this.storage.uploadDocument(file, 'borradores');
 
@@ -138,6 +163,7 @@ export class DocumentosService {
         estado: EstadoDocumento.BORRADOR,
         soloLecturaImagen: data.soloLecturaImagen ?? false,
         nombreBreve: data.nombreBreve,
+        temaPrincipal: data.temaPrincipal,
         tipoNorma: data.tipoNorma,
         enteEmisor: data.enteEmisor,
         fechaPublicacion: data.fechaPublicacion,
@@ -146,6 +172,9 @@ export class DocumentosService {
         etiquetas: data.etiquetas ?? [],
         palabrasClave: data.palabrasClave ?? [],
         curadorId,
+        ...(data.categoriaIds && data.categoriaIds.length > 0
+          ? { categorias: { connect: data.categoriaIds.map(id => ({ id })) } }
+          : {}),
       },
     });
 
@@ -269,9 +298,7 @@ export class DocumentosService {
     if (query.estado) {
       switch (query.estado) {
         case CuradorFiltroEstado.PUBLICADOS:
-          where.estado = {
-            in: [EstadoDocumento.VIGENTE, EstadoDocumento.REFORMADA, EstadoDocumento.DEROGADA],
-          };
+          where.estado = EstadoDocumento.PUBLICADO;
           break;
         case CuradorFiltroEstado.EN_REVISION:
           where.estado = EstadoDocumento.PENDIENTE_REVISION;
