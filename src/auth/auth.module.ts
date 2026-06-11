@@ -7,6 +7,7 @@ import { AuthController } from './auth.controller';
 import { PrismaModule } from '../prisma/prisma.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { MuroCompletoGuard } from './guards/muro-completo.guard';
+import { RequirePasswordChangedGuard } from './guards/require-password-changed.guard';
 
 @Module({
   imports: [
@@ -21,8 +22,8 @@ import { MuroCompletoGuard } from './guards/muro-completo.guard';
       }),
     }),
   ],
-  providers: [AuthService, JwtStrategy, MuroCompletoGuard],
+  providers: [AuthService, JwtStrategy, MuroCompletoGuard, RequirePasswordChangedGuard],
   controllers: [AuthController],
-  exports: [JwtModule, MuroCompletoGuard],
+  exports: [JwtModule, MuroCompletoGuard, RequirePasswordChangedGuard],
 })
 export class AuthModule {}

@@ -3,6 +3,7 @@ import {
   UnauthorizedException,
   ConflictException,
   NotFoundException,
+  BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from '../prisma/prisma.service';
@@ -47,7 +48,17 @@ export class AuthService {
 
   async login(email: string, pass: string) {
     // 1. Buscamos al usuario
-    const user = await this.prismaClient.user.findUnique({ where: { email } });
+    const user = await this.prismaClient.user.findUnique({
+      where: { email },
+      select: {
+        id: true,
+        email: true,
+        role: true,
+        password: true,
+        tokenVersion: true,
+        requirePasswordChange: true,
+      },
+    });
     if (!user) {
       throw new UnauthorizedException('Credenciales inválidas');
     }
@@ -58,7 +69,22 @@ export class AuthService {
       throw new UnauthorizedException('Credenciales inválidas');
     }
 
-    // 3. Generamos el JWT
+    // 3. Si el usuario tiene contraseña temporal, emitir token restringido
+    if (user.requirePasswordChange) {
+      const restrictedPayload = {
+        sub: user.id,
+        email: user.email,
+        role: user.role,
+        tv: user.tokenVersion,
+        scope: 'change-password',
+      };
+      return {
+        access_token: this.jwtService.sign(restrictedPayload, { expiresIn: '30m' }),
+        mustChangePassword: true,
+      };
+    }
+
+    // 4. Login normal: generar JWT de acceso completo
     const payload = {
       sub: user.id,
       email: user.email,
@@ -66,6 +92,62 @@ export class AuthService {
       tv: user.tokenVersion,
     };
     return {
+      access_token: this.jwtService.sign(payload),
+      mustChangePassword: false,
+    };
+  }
+
+  /**
+   * Permite a un usuario cambiar su contraseña temporal.
+   * Accesible tanto con token restringido (scope: 'change-password')
+   * como con token normal (para cambios voluntarios futuros).
+   * Devuelve un nuevo JWT de acceso completo tras el cambio exitoso.
+   */
+  async changePassword(userId: string, currentPassword: string, newPassword: string) {
+    const user = await this.prismaClient.user.findUnique({
+      where: { id: userId },
+      select: { id: true, email: true, role: true, password: true, tokenVersion: true },
+    });
+
+    if (!user) {
+      throw new NotFoundException('Usuario no encontrado');
+    }
+
+    // Validar que la contraseña actual (temporal) sea correcta
+    const isCurrentValid = await bcrypt.compare(currentPassword, user.password);
+    if (!isCurrentValid) {
+      throw new UnauthorizedException('La contraseña actual es incorrecta');
+    }
+
+    // Evitar reusar la misma contraseña
+    const isSamePassword = await bcrypt.compare(newPassword, user.password);
+    if (isSamePassword) {
+      throw new BadRequestException('La nueva contraseña no puede ser igual a la actual');
+    }
+
+    const hashedNew = await bcrypt.hash(newPassword, 10);
+
+    // Actualizar contraseña, quitar flag y rotar tokenVersion para invalidar el token restringido
+    const updated = await this.prismaClient.user.update({
+      where: { id: userId },
+      data: {
+        password: hashedNew,
+        requirePasswordChange: false,
+        tokenVersion: { increment: 1 },
+      },
+      select: { id: true, email: true, role: true, tokenVersion: true },
+    });
+
+    // Emitir un JWT de acceso completo directamente (el usuario no tiene que volver a loguearse)
+    const payload = {
+      sub: updated.id,
+      email: updated.email,
+      role: updated.role,
+      tv: updated.tokenVersion,
+    };
+
+    return {
+      message: 'Contraseña actualizada exitosamente',
       access_token: this.jwtService.sign(payload),
     };
   }

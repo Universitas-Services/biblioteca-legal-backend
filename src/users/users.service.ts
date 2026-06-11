@@ -272,6 +272,7 @@ export class UsersService {
         role,
         nombre,
         apellido,
+        requirePasswordChange: true,
         ...(temaIds && temaIds.length > 0
           ? { temasAsignados: { connect: temaIds.map(id => ({ id })) } }
           : {}),
