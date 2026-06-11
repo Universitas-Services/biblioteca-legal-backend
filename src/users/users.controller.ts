@@ -1,5 +1,13 @@
 import { Body, Controller, Get, Param, Post, Put, Query, UseGuards, Delete } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiBearerAuth, ApiOkResponse, ApiParam } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiBearerAuth,
+  ApiOkResponse,
+  ApiParam,
+  ApiUnauthorizedResponse,
+  ApiNotFoundResponse,
+} from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { UsersService } from './users.service';
 import { CreateStaffDto } from './dto/create-staff.dto';
@@ -12,11 +20,34 @@ import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
 import { CurrentUser, JwtPayloadUser } from '../auth/decorators/current-user.decorator';
+import { MeProfileResponseDto } from './dto/me-profile-response.dto';
 
 @ApiTags('Users')
 @Controller('users')
 export class UsersController {
   constructor(private readonly usersService: UsersService) {}
+
+  @Get('me')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard)
+  @ApiOperation({
+    summary: 'Devuelve el perfil del usuario autenticado',
+    description:
+      'Devuelve los detalles básicos del perfil del usuario actualmente autenticado (excluyendo datos de onboarding como nivelMuro y profesion, así como métricas agregadas). Este endpoint es accesible por cualquier usuario que posea un JWT válido, sin importar su rol.',
+  })
+  @ApiOkResponse({
+    description: 'Perfil del usuario obtenido correctamente.',
+    type: MeProfileResponseDto,
+  })
+  @ApiUnauthorizedResponse({
+    description: 'No autorizado. El token JWT no fue enviado, ha expirado o es inválido.',
+  })
+  @ApiNotFoundResponse({
+    description: 'El usuario correspondiente al token no fue encontrado en la base de datos.',
+  })
+  getMeProfile(@CurrentUser() user: JwtPayloadUser) {
+    return this.usersService.getMeProfile(user.sub);
+  }
 
   @Post('admin/staff')
   @ApiBearerAuth()
