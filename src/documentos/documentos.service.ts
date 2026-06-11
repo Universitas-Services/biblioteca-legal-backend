@@ -127,6 +127,14 @@ export class DocumentosService {
       );
     }
 
+    if (data.categoriaIds?.length) {
+      await this.categoriasService.validarIdsAprobadas(data.categoriaIds);
+    }
+
+    if (data.temaPrincipal) {
+      await this.especialidad.assertCuradorPuedeSubirTema(curadorId, data.temaPrincipal);
+    }
+
     // Subir a la carpeta 'borradores' en GCS
     const cloudUrl = await this.storage.uploadDocument(file, 'borradores');
 
@@ -138,6 +146,7 @@ export class DocumentosService {
         estado: EstadoDocumento.BORRADOR,
         soloLecturaImagen: data.soloLecturaImagen ?? false,
         nombreBreve: data.nombreBreve,
+        temaPrincipal: data.temaPrincipal,
         tipoNorma: data.tipoNorma,
         enteEmisor: data.enteEmisor,
         fechaPublicacion: data.fechaPublicacion,
@@ -146,6 +155,9 @@ export class DocumentosService {
         etiquetas: data.etiquetas ?? [],
         palabrasClave: data.palabrasClave ?? [],
         curadorId,
+        ...(data.categoriaIds && data.categoriaIds.length > 0
+          ? { categorias: { connect: data.categoriaIds.map(id => ({ id })) } }
+          : {}),
       },
     });
 

@@ -27,6 +27,11 @@ export class UploadBorradorDto {
   @ApiProperty({ required: false })
   @IsString()
   @IsOptional()
+  temaPrincipal?: string;
+
+  @ApiProperty({ required: false })
+  @IsString()
+  @IsOptional()
   tipoNorma?: string;
 
   @ApiProperty({ required: false })
@@ -64,4 +69,12 @@ export class UploadBorradorDto {
     typeof value === 'string' ? value.split(',').map((s: string) => s.trim()) : (value as string[]),
   )
   palabrasClave?: string[];
+
+  @ApiProperty({ required: false, type: [String] })
+  @IsArray()
+  @IsOptional()
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.split(',').map((s: string) => s.trim()) : (value as string[]),
+  )
+  categoriaIds?: string[];
 }
