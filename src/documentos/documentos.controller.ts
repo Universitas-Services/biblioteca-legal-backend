@@ -62,7 +62,11 @@ export class DocumentosController {
 
   @Post('upload')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Subir documento (Curador)' })
+  @ApiOperation({
+    summary: 'Subir documento (Curador)',
+    description:
+      'Sube un nuevo documento y lo coloca automáticamente en estado PENDIENTE_REVISION. Asigna un revisor automáticamente según el tema principal.',
+  })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: UploadDocumentoRequestDto })
   @UseGuards(JwtAuthGuard, RolesGuard)

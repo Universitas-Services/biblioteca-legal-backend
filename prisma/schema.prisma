@@ -18,6 +18,10 @@ enum Role {
 enum EstadoDocumento {
   BORRADOR
   PENDIENTE_REVISION
+  PUBLICADO
+}
+
+enum EstadoLegal {
   VIGENTE
   REFORMADA
   DEROGADA
@@ -153,6 +157,7 @@ model Documento {
   tituloIntegro       String
   archivoOriginalUrl  String
   estado              EstadoDocumento @default(PENDIENTE_REVISION)
+  estadoLegal         EstadoLegal?
   ultimaActualizacion DateTime        @updatedAt
   createdAt           DateTime        @default(now())
 

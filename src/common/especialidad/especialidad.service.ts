@@ -80,15 +80,21 @@ export class EspecialidadService {
   }
 
   async assertRevisorPuedeGestionarDocumento(revisorId: string, documentoId: string) {
-    const [temas, documento] = await Promise.all([
+    const [temas, documento, user] = await Promise.all([
       this.getTemasAsignadosUsuario(revisorId),
       this.prisma.client.documento.findFirst({
         where: { id: documentoId, eliminado: false },
         select: { revisorAsignadoId: true, temaPrincipal: true },
       }),
+      this.prisma.client.user.findUnique({
+        where: { id: revisorId },
+        select: { role: true },
+      }),
     ]);
 
     if (!documento) return;
+
+    if (user?.role === Role.ADMIN) return;
 
     if (tieneEspecialidadGeneral(temas)) return;
 
@@ -99,7 +105,7 @@ export class EspecialidadService {
     }
 
     throw new ForbiddenException(
-      'No tiene permiso para revisar este documento. Requiere la especialidad del tema o "General".',
+      'No tiene permiso para revisar este documento. Requiere la especialidad del tema, "General", o rol ADMIN.',
     );
   }
 

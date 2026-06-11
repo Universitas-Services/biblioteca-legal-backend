@@ -1,5 +1,5 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
-import { EstadoDocumento, Prisma } from '@prisma/client';
+import { EstadoDocumento, Prisma, Role } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { MatchmakerService } from '../matrices/matchmaker.service';
 import { DocumentosService } from '../documentos/documentos.service';
@@ -15,7 +15,13 @@ export class WorkflowsService {
   ) {}
 
   async getBandeja(revisorId: string) {
-    const accesoGeneral = await this.especialidad.revisorTieneAccesoGeneral(revisorId);
+    const user = await this.prisma.client.user.findUnique({
+      where: { id: revisorId },
+      select: { role: true },
+    });
+
+    const esAdmin = user?.role === Role.ADMIN;
+    const accesoGeneral = esAdmin || (await this.especialidad.revisorTieneAccesoGeneral(revisorId));
 
     const where: Prisma.DocumentoWhereInput = {
       estado: EstadoDocumento.PENDIENTE_REVISION,
@@ -41,7 +47,7 @@ export class WorkflowsService {
 
     const match = await this.matchmaker.match(documento.palabrasClave ?? []);
 
-    await this.documentosService.cambiarEstado(documentoId, EstadoDocumento.VIGENTE);
+    await this.documentosService.cambiarEstado(documentoId, EstadoDocumento.PUBLICADO);
 
     const updated = await this.prisma.client.documento.update({
       where: { id: documentoId },
