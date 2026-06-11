@@ -92,6 +92,10 @@ export class DocumentosService {
         curadorId,
         revisorAsignadoId,
         categorias: { connect: data.categoriaIds.map(id => ({ id })) },
+        ...(data.matrizAId ? { matrizAId: data.matrizAId } : {}),
+        ...(data.matrizBIds?.length
+          ? { matrizB: { connect: data.matrizBIds.map(id => ({ id })) } }
+          : {}),
       },
       include: { categorias: true, revisorAsignado: true },
     });
@@ -174,6 +178,10 @@ export class DocumentosService {
         curadorId,
         ...(data.categoriaIds && data.categoriaIds.length > 0
           ? { categorias: { connect: data.categoriaIds.map(id => ({ id })) } }
+          : {}),
+        ...(data.matrizAId ? { matrizAId: data.matrizAId } : {}),
+        ...(data.matrizBIds?.length
+          ? { matrizB: { connect: data.matrizBIds.map(id => ({ id })) } }
           : {}),
       },
     });
@@ -474,16 +482,36 @@ export class DocumentosService {
       palabrasClave: updateData.palabrasClave,
     };
 
+    if (updateData.estadoLegal !== undefined) {
+      data.estadoLegal = updateData.estadoLegal;
+    }
+
+    // MatrizA: connect si se envía ID, disconnect si se envía null/string vacío
+    if (updateData.matrizAId !== undefined) {
+      data.matrizA = updateData.matrizAId
+        ? { connect: { id: updateData.matrizAId } }
+        : { disconnect: true };
+    }
+
     if (updateData.categoriaIds?.length) {
       await this.categoriasService.validarIdsAprobadas(updateData.categoriaIds);
       data.categorias = { set: updateData.categoriaIds.map(cid => ({ id: cid })) };
     }
 
+    // MatrizB: set reemplaza todas las relaciones actuales
+    if (updateData.matrizBIds !== undefined) {
+      data.matrizB = { set: updateData.matrizBIds.map(id => ({ id })) };
+    }
+
     const updatedDoc = await this.prisma.client.documento.update({
       where: { id },
       data,
-      include: { categorias: true },
+      include: { categorias: true, matrizA: true, matrizB: true },
     });
+
+    if (updateData.estadoLegal !== undefined && documento.estadoLegal !== updateData.estadoLegal) {
+      this.emitEstadoLegalCambio(id, documento.estadoLegal, updateData.estadoLegal);
+    }
 
     return { message: 'Actualización exitosa', documento: updatedDoc };
   }
