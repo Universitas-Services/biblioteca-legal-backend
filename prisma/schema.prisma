@@ -137,6 +137,7 @@ model User {
   profesion           Profesion?
   nivelMuro           Int                 @default(0)
   tokenVersion        Int                 @default(0)
+  requirePasswordChange Boolean           @default(false)
   consultasRealizadas Int                 @default(0)
   temasAsignados      TemaPrincipal[]     @relation("RevisorTemas") // CURADOR y REVISOR (incl. slug "general")
   createdAt           DateTime            @default(now())
