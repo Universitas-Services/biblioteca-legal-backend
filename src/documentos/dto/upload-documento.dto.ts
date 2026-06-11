@@ -87,4 +87,25 @@ export class UploadDocumentoDto {
     typeof value === 'string' ? value.split(',').map((s: string) => s.trim()) : (value as string[]),
   )
   palabrasClave?: string[];
+
+  @ApiProperty({
+    required: false,
+    description: 'ID de la MatrizA (Producto/Formación) seleccionada por el curador',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  matrizAId?: string;
+
+  @ApiProperty({
+    required: false,
+    type: [String],
+    description: 'IDs de MatrizB (Artículos Ágora) seleccionados por el curador',
+  })
+  @IsArray()
+  @IsOptional()
+  @IsUUID('4', { each: true })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.split(',').map((s: string) => s.trim()) : (value as string[]),
+  )
+  matrizBIds?: string[];
 }

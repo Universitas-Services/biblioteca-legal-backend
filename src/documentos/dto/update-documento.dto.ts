@@ -1,8 +1,9 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
 import { PartialType } from '@nestjs/swagger';
 import { UploadDocumentoDto } from './upload-documento.dto';
-import { IsArray, IsOptional, IsUUID } from 'class-validator';
+import { IsArray, IsEnum, IsOptional, IsUUID } from 'class-validator';
 import { Transform } from 'class-transformer';
+import { EstadoLegal } from '@prisma/client';
 
 export class UpdateDocumentoDto extends PartialType(UploadDocumentoDto) {
   @ApiPropertyOptional({ type: [String] })
@@ -13,4 +14,12 @@ export class UpdateDocumentoDto extends PartialType(UploadDocumentoDto) {
     typeof value === 'string' ? value.split(',').map((s: string) => s.trim()) : (value as string[]),
   )
   categoriaIds?: string[];
+
+  @ApiPropertyOptional({
+    enum: EstadoLegal,
+    description: 'Estado legal del documento (VIGENTE, REFORMADA, DEROGADA)',
+  })
+  @IsEnum(EstadoLegal)
+  @IsOptional()
+  estadoLegal?: EstadoLegal;
 }

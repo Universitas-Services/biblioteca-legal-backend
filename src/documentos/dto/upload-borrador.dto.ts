@@ -1,5 +1,5 @@
 import { ApiProperty } from '@nestjs/swagger';
-import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsArray } from 'class-validator';
+import { IsString, IsNotEmpty, IsOptional, IsBoolean, IsArray, IsUUID } from 'class-validator';
 import { Transform } from 'class-transformer';
 
 export class UploadBorradorDto {
@@ -77,4 +77,25 @@ export class UploadBorradorDto {
     typeof value === 'string' ? value.split(',').map((s: string) => s.trim()) : (value as string[]),
   )
   categoriaIds?: string[];
+
+  @ApiProperty({
+    required: false,
+    description: 'ID de la MatrizA (Producto/Formación) seleccionada por el curador',
+  })
+  @IsOptional()
+  @IsUUID('4')
+  matrizAId?: string;
+
+  @ApiProperty({
+    required: false,
+    type: [String],
+    description: 'IDs de MatrizB (Artículos Ágora) seleccionados por el curador',
+  })
+  @IsArray()
+  @IsOptional()
+  @IsUUID('4', { each: true })
+  @Transform(({ value }: { value: unknown }) =>
+    typeof value === 'string' ? value.split(',').map((s: string) => s.trim()) : (value as string[]),
+  )
+  matrizBIds?: string[];
 }
