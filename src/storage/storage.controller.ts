@@ -181,6 +181,7 @@ export class StorageController {
   }
 
   @Get('carpeta-interna/:id/hijos')
+  @Roles('ADMIN', 'CURADOR')
   @ApiOperation({ summary: 'Listar hijos directos de una carpeta interna' })
   @ApiParam({ name: 'id', type: String })
   findCarpetasInternasHijas(
@@ -191,6 +192,7 @@ export class StorageController {
   }
 
   @Get('carpeta-interna/:id')
+  @Roles('ADMIN', 'CURADOR')
   @ApiOperation({ summary: 'Obtener una carpeta interna por ID' })
   @ApiParam({ name: 'id', type: String })
   findCarpetaInternaById(

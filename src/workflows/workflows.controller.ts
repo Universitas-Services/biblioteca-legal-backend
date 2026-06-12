@@ -45,7 +45,7 @@ export class WorkflowsController {
   @ApiOperation({
     summary: 'Rechazar documento y devolver al curador con correcciones',
     description:
-      'Cambia el estado del documento de PENDIENTE_REVISION a BORRADOR y genera una nota interna con el motivo del rechazo, lo que notificará al curador de las correcciones requeridas.',
+      'Cambia el estado del documento de PENDIENTE_REVISION a RECHAZADO y genera una nota interna con el motivo del rechazo, lo que notificará al curador de las correcciones requeridas.',
   })
   rechazar(
     @Param('id') id: string,

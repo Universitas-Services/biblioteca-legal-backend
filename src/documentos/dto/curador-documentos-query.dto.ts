@@ -7,6 +7,7 @@ export enum CuradorFiltroEstado {
   PUBLICADOS = 'PUBLICADOS',
   EN_REVISION = 'EN_REVISION',
   BORRADORES = 'BORRADORES',
+  RECHAZADOS = 'RECHAZADOS',
 }
 
 export enum CuradorFiltroTiempo {

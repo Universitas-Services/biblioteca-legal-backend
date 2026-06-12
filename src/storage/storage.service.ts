@@ -624,7 +624,7 @@ export class StorageService {
     };
   }
 
-  private async getCarpetaSlugsChain(carpetaId: string): Promise<string[]> {
+  async getCarpetaSlugsChain(carpetaId: string): Promise<string[]> {
     const slugs: string[] = [];
     let currentId: string | null = carpetaId;
 
