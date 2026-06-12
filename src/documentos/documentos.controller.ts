@@ -65,7 +65,7 @@ export class DocumentosController {
   @ApiOperation({
     summary: 'Subir documento (Curador)',
     description:
-      'Sube un nuevo documento y lo coloca automáticamente en estado PENDIENTE_REVISION. Asigna un revisor automáticamente según el tema principal.',
+      'Sube un nuevo archivo al bucket en la ruta provisional /pendientes/ y crea el registro en estado PENDIENTE_REVISION. El temaPrincipal y tipoNorma se derivan automáticamente de subcarpetaNormaId. Se asigna un revisor automáticamente según el tema.',
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: UploadDocumentoRequestDto })
@@ -98,7 +98,11 @@ export class DocumentosController {
 
   @Post('borrador')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Subir documento como borrador (Solo Curador)' })
+  @ApiOperation({
+    summary: 'Subir documento como borrador (Solo Curador)',
+    description:
+      'Sube el archivo al bucket en la ruta /borradores/. Si se proporciona la carpeta destino, se auto-derivan los temas. El estado queda en BORRADOR sin notificar a revisores.',
+  })
   @ApiConsumes('multipart/form-data')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CURADOR)
@@ -113,7 +117,11 @@ export class DocumentosController {
 
   @Patch('borrador/:id/publicar')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Publicar borrador (Pasa a Pendiente de Revisión)' })
+  @ApiOperation({
+    summary: 'Publicar borrador (Pasa a Pendiente de Revisión)',
+    description:
+      'Mueve físicamente el archivo en GCS desde /borradores/ hacia /pendientes/. Transiciona el estado de BORRADOR a PENDIENTE_REVISION y notifica al revisor correspondiente.',
+  })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CURADOR)
   async publicarBorrador(
@@ -205,6 +213,11 @@ export class DocumentosController {
   @Put('editar/:id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
+  @ApiOperation({
+    summary: 'Editar documento (Curador, Revisor, Admin)',
+    description:
+      'Permite modificar los metadatos o reemplazar el archivo PDF. Si el documento estaba en estado RECHAZADO, al editarse pasa automáticamente a PENDIENTE_REVISION para que sea evaluado nuevamente.',
+  })
   @Roles(Role.CURADOR, Role.REVISOR, Role.ADMIN)
   @UseInterceptors(FileInterceptor('file'), AuditLogInterceptor)
   @ApiConsumes('multipart/form-data')

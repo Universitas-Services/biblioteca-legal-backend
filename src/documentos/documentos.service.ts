@@ -60,6 +60,45 @@ export class DocumentosService {
       );
     }
   }
+  private async resolverCarpetaDestino(subcarpetaNormaId: string, carpetaInternaId?: string) {
+    const subcarpeta = await this.prisma.client.subcarpetaNorma.findFirst({
+      where: { id: subcarpetaNormaId, eliminado: false },
+      include: { temaPrincipal: { select: { slug: true, nombre: true, eliminado: true } } },
+    });
+
+    if (!subcarpeta || subcarpeta.temaPrincipal.eliminado) {
+      throw new NotFoundException(
+        `La subcarpeta con ID ${subcarpetaNormaId} no existe o su tema fue eliminado.`,
+      );
+    }
+
+    let gcsPath = `tema-principal/${subcarpeta.temaPrincipal.slug}/${subcarpeta.slug}`;
+    let carpetaInternaIdFinal: string | null = null;
+
+    if (carpetaInternaId) {
+      const carpeta = await this.prisma.client.carpetaInterna.findFirst({
+        where: { id: carpetaInternaId, eliminado: false },
+      });
+
+      if (!carpeta) {
+        throw new NotFoundException(
+          `La carpeta interna con ID ${carpetaInternaId} no existe o fue eliminada.`,
+        );
+      }
+
+      const slugsChain = await this.storage.getCarpetaSlugsChain(carpetaInternaId);
+      gcsPath = `tema-principal/${subcarpeta.temaPrincipal.slug}/${subcarpeta.slug}/${slugsChain.join('/')}`;
+      carpetaInternaIdFinal = carpeta.id;
+    }
+
+    return {
+      gcsPath,
+      subcarpetaNormaId: subcarpeta.id,
+      carpetaInternaId: carpetaInternaIdFinal,
+      temaPrincipal: subcarpeta.temaPrincipal.nombre,
+      tipoNorma: subcarpeta.nombre,
+    };
+  }
 
   async procesarCarga(file: Express.Multer.File, data: UploadDocumentoDto, curadorId: string) {
     await this.validarDuplicidad.validar(
@@ -68,10 +107,15 @@ export class DocumentosService {
       data.fechaPublicacion,
     );
     await this.categoriasService.validarIdsAprobadas(data.categoriaIds);
-    await this.especialidad.assertCuradorPuedeSubirTema(curadorId, data.temaPrincipal);
 
-    const cloudUrl = await this.storage.uploadDocument(file);
-    const revisorAsignadoId = await this.asignacionRevisor.asignarPorTema(data.temaPrincipal);
+    const destino = await this.resolverCarpetaDestino(
+      data.subcarpetaNormaId,
+      data.carpetaInternaId,
+    );
+    await this.especialidad.assertCuradorPuedeSubirTema(curadorId, destino.temaPrincipal);
+
+    const cloudUrl = await this.storage.uploadDocument(file, 'pendientes');
+    const revisorAsignadoId = await this.asignacionRevisor.asignarPorTema(destino.temaPrincipal);
 
     const nuevoDoc = await this.prisma.client.documento.create({
       data: {
@@ -81,9 +125,11 @@ export class DocumentosService {
         estado: EstadoDocumento.PENDIENTE_REVISION,
         soloLecturaImagen: data.soloLecturaImagen ?? false,
         nombreBreve: data.nombreBreve,
-        temaPrincipal: data.temaPrincipal,
+        temaPrincipal: destino.temaPrincipal,
         etiquetas: data.etiquetas ?? [],
-        tipoNorma: data.tipoNorma,
+        tipoNorma: destino.tipoNorma,
+        subcarpetaNormaId: destino.subcarpetaNormaId,
+        carpetaInternaId: destino.carpetaInternaId,
         enteEmisor: data.enteEmisor,
         fechaPublicacion: data.fechaPublicacion,
         numeroGaceta: data.numeroGaceta,
@@ -152,8 +198,20 @@ export class DocumentosService {
       await this.categoriasService.validarIdsAprobadas(data.categoriaIds);
     }
 
-    if (data.temaPrincipal) {
-      await this.especialidad.assertCuradorPuedeSubirTema(curadorId, data.temaPrincipal);
+    let temaPrincipal: string | null = null;
+    let tipoNorma: string | null = null;
+
+    if (data.subcarpetaNormaId) {
+      const destino = await this.resolverCarpetaDestino(
+        data.subcarpetaNormaId,
+        data.carpetaInternaId,
+      );
+      temaPrincipal = destino.temaPrincipal;
+      tipoNorma = destino.tipoNorma;
+    }
+
+    if (temaPrincipal) {
+      await this.especialidad.assertCuradorPuedeSubirTema(curadorId, temaPrincipal);
     }
 
     // Subir a la carpeta 'borradores' en GCS
@@ -167,8 +225,10 @@ export class DocumentosService {
         estado: EstadoDocumento.BORRADOR,
         soloLecturaImagen: data.soloLecturaImagen ?? false,
         nombreBreve: data.nombreBreve,
-        temaPrincipal: data.temaPrincipal,
-        tipoNorma: data.tipoNorma,
+        temaPrincipal: temaPrincipal,
+        tipoNorma: tipoNorma,
+        subcarpetaNormaId: data.subcarpetaNormaId ?? null,
+        carpetaInternaId: data.carpetaInternaId ?? null,
         enteEmisor: data.enteEmisor,
         fechaPublicacion: data.fechaPublicacion,
         numeroGaceta: data.numeroGaceta,
@@ -204,17 +264,25 @@ export class DocumentosService {
     }
 
     await this.categoriasService.validarIdsAprobadas(data.categoriaIds);
-    await this.especialidad.assertCuradorPuedeSubirTema(curadorId, data.temaPrincipal);
 
-    // Mover de la carpeta 'borradores' a la carpeta 'documentos'
-    const newCloudUrl = await this.storage.moveFile(documento.archivoOriginalUrl, 'documentos');
-    const revisorAsignadoId = await this.asignacionRevisor.asignarPorTema(data.temaPrincipal);
+    const destino = await this.resolverCarpetaDestino(
+      data.subcarpetaNormaId,
+      data.carpetaInternaId,
+    );
+    await this.especialidad.assertCuradorPuedeSubirTema(curadorId, destino.temaPrincipal);
+
+    // Mover de la carpeta 'borradores' a la carpeta 'pendientes'
+    const newCloudUrl = await this.storage.moveFile(documento.archivoOriginalUrl, 'pendientes');
+    const revisorAsignadoId = await this.asignacionRevisor.asignarPorTema(destino.temaPrincipal);
 
     const updatedDoc = await this.prisma.client.documento.update({
       where: { id: documentoId },
       data: {
         estado: EstadoDocumento.PENDIENTE_REVISION,
-        temaPrincipal: data.temaPrincipal,
+        temaPrincipal: destino.temaPrincipal,
+        tipoNorma: destino.tipoNorma,
+        subcarpetaNormaId: destino.subcarpetaNormaId,
+        carpetaInternaId: destino.carpetaInternaId,
         archivoOriginalUrl: newCloudUrl,
         revisorAsignadoId,
         categorias: { connect: data.categoriaIds.map(id => ({ id })) },
@@ -314,6 +382,9 @@ export class DocumentosService {
         case CuradorFiltroEstado.BORRADORES:
           where.estado = EstadoDocumento.BORRADOR;
           break;
+        case CuradorFiltroEstado.RECHAZADOS:
+          where.estado = EstadoDocumento.RECHAZADO;
+          break;
         case CuradorFiltroEstado.TODOS:
         default:
           break;
@@ -356,7 +427,7 @@ export class DocumentosService {
 
     const where: Prisma.DocumentoWhereInput = {
       eliminado: false,
-      estado: { not: EstadoDocumento.PENDIENTE_REVISION },
+      estado: EstadoDocumento.PUBLICADO,
     };
 
     if (query.categoriaId) {
@@ -392,7 +463,7 @@ export class DocumentosService {
       where: {
         nombreBreve,
         eliminado: false,
-        estado: { not: EstadoDocumento.PENDIENTE_REVISION },
+        estado: EstadoDocumento.PUBLICADO,
       },
       select: {
         id: true,
@@ -463,7 +534,10 @@ export class DocumentosService {
 
     let cloudUrl = documento.archivoOriginalUrl;
     if (file) {
-      cloudUrl = await this.storage.uploadDocument(file);
+      cloudUrl = await this.storage.uploadDocument(
+        file,
+        documento.estado === EstadoDocumento.RECHAZADO ? 'pendientes' : undefined,
+      );
     }
 
     const data: Prisma.DocumentoUpdateInput = {
@@ -472,15 +546,28 @@ export class DocumentosService {
       archivoOriginalUrl: cloudUrl,
       soloLecturaImagen: updateData.soloLecturaImagen,
       nombreBreve: updateData.nombreBreve,
-      temaPrincipal: updateData.temaPrincipal,
       etiquetas: updateData.etiquetas,
-      tipoNorma: updateData.tipoNorma,
       enteEmisor: updateData.enteEmisor,
       fechaPublicacion: updateData.fechaPublicacion,
       numeroGaceta: updateData.numeroGaceta,
       resumen: updateData.resumen,
       palabrasClave: updateData.palabrasClave,
     };
+
+    if (updateData.subcarpetaNormaId) {
+      const destino = await this.resolverCarpetaDestino(
+        updateData.subcarpetaNormaId,
+        updateData.carpetaInternaId,
+      );
+      data.temaPrincipal = destino.temaPrincipal;
+      data.tipoNorma = destino.tipoNorma;
+      data.subcarpetaNorma = destino.subcarpetaNormaId
+        ? { connect: { id: destino.subcarpetaNormaId } }
+        : { disconnect: true };
+      data.carpetaInterna = destino.carpetaInternaId
+        ? { connect: { id: destino.carpetaInternaId } }
+        : { disconnect: true };
+    }
 
     if (updateData.estadoLegal !== undefined) {
       data.estadoLegal = updateData.estadoLegal;
@@ -508,6 +595,11 @@ export class DocumentosService {
       data,
       include: { categorias: true, matrizA: true, matrizB: true },
     });
+
+    if (documento.estado === EstadoDocumento.RECHAZADO) {
+      await this.cambiarEstado(id, EstadoDocumento.PENDIENTE_REVISION);
+      updatedDoc.estado = EstadoDocumento.PENDIENTE_REVISION;
+    }
 
     if (updateData.estadoLegal !== undefined && documento.estadoLegal !== updateData.estadoLegal) {
       this.emitEstadoLegalCambio(id, documento.estadoLegal, updateData.estadoLegal);

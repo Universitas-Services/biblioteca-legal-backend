@@ -4,6 +4,7 @@ import { PrismaService } from '../prisma/prisma.service';
 import { DocumentosService } from '../documentos/documentos.service';
 import { EspecialidadService } from '../common/especialidad/especialidad.service';
 import { NotasInternasService } from '../notas-internas/notas-internas.service';
+import { StorageService } from '../storage/storage.service';
 import { PublicarDocumentoDto } from './dto/publicar-documento.dto';
 import { RechazarDocumentoDto } from './dto/rechazar-documento.dto';
 
@@ -14,6 +15,7 @@ export class WorkflowsService {
     private documentosService: DocumentosService,
     private especialidad: EspecialidadService,
     private notasInternasService: NotasInternasService,
+    private storageService: StorageService,
   ) {}
 
   async getBandeja(revisorId: string) {
@@ -59,6 +61,18 @@ export class WorkflowsService {
     const matrizBIds: string[] =
       dto?.matrizBIds !== undefined ? dto.matrizBIds : (documento.matrizB?.map(m => m.id) ?? []);
 
+    if (documento.subcarpetaNormaId) {
+      const destino = await this.resolverRutaFinalDocumento(
+        documento.subcarpetaNormaId,
+        documento.carpetaInternaId,
+      );
+      const nuevaUrl = await this.storageService.moveFile(documento.archivoOriginalUrl, destino);
+      await this.prisma.client.documento.update({
+        where: { id: documentoId },
+        data: { archivoOriginalUrl: nuevaUrl },
+      });
+    }
+
     await this.documentosService.cambiarEstado(documentoId, EstadoDocumento.PUBLICADO);
 
     const updated = await this.prisma.client.documento.update({
@@ -92,8 +106,8 @@ export class WorkflowsService {
       throw new NotFoundException('Solo se pueden rechazar documentos pendientes de revisión');
     }
 
-    // Cambiar estado a BORRADOR
-    await this.documentosService.cambiarEstado(documentoId, EstadoDocumento.BORRADOR);
+    // Cambiar estado a RECHAZADO
+    await this.documentosService.cambiarEstado(documentoId, EstadoDocumento.RECHAZADO);
 
     // Crear nota interna con el motivo (esto notificará automáticamente al curador si existe)
     await this.notasInternasService.create(revisorId, {
@@ -102,7 +116,30 @@ export class WorkflowsService {
     });
 
     return {
-      message: 'Documento devuelto al curador exitosamente con sus correcciones',
+      message: 'Documento rechazado y devuelto al curador con correcciones',
     };
+  }
+
+  private async resolverRutaFinalDocumento(
+    subcarpetaNormaId: string,
+    carpetaInternaId: string | null,
+  ): Promise<string> {
+    const subcarpeta = await this.prisma.client.subcarpetaNorma.findFirst({
+      where: { id: subcarpetaNormaId },
+      include: { temaPrincipal: true },
+    });
+
+    if (!subcarpeta || !subcarpeta.temaPrincipal) {
+      throw new NotFoundException('Subcarpeta o tema principal no encontrados');
+    }
+
+    let ruta = `tema-principal/${subcarpeta.temaPrincipal.slug}/${subcarpeta.slug}`;
+
+    if (carpetaInternaId) {
+      const slugs = await this.storageService.getCarpetaSlugsChain(carpetaInternaId);
+      ruta += `/${slugs.join('/')}`;
+    }
+
+    return ruta;
   }
 }

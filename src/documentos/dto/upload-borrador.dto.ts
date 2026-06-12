@@ -24,15 +24,21 @@ export class UploadBorradorDto {
   @IsOptional()
   nombreBreve?: string;
 
-  @ApiProperty({ required: false })
-  @IsString()
+  @ApiProperty({
+    required: false,
+    description: 'ID de SubcarpetaNorma destino (opcional en borrador)',
+  })
   @IsOptional()
-  temaPrincipal?: string;
+  @IsUUID('4')
+  subcarpetaNormaId?: string;
 
-  @ApiProperty({ required: false })
-  @IsString()
+  @ApiProperty({
+    required: false,
+    description: 'ID de CarpetaInterna destino (opcional en borrador)',
+  })
   @IsOptional()
-  tipoNorma?: string;
+  @IsUUID('4')
+  carpetaInternaId?: string;
 
   @ApiProperty({ required: false })
   @IsString()

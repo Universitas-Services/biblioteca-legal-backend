@@ -19,6 +19,7 @@ enum EstadoDocumento {
   BORRADOR
   PENDIENTE_REVISION
   PUBLICADO
+  RECHAZADO
 }
 
 enum EstadoLegal {
@@ -95,6 +96,7 @@ model SubcarpetaNorma {
   temaPrincipalId  String // FK al tema padre
   temaPrincipal    TemaPrincipal    @relation(fields: [temaPrincipalId], references: [id], onDelete: Cascade)
   carpetasInternas CarpetaInterna[]
+  documentos       Documento[]
   createdAt        DateTime         @default(now())
   updatedAt        DateTime         @updatedAt
 
@@ -118,6 +120,7 @@ model CarpetaInterna {
   parentId          String?
   parent            CarpetaInterna?  @relation("CarpetaInternaHierarchy", fields: [parentId], references: [id], onDelete: Cascade)
   children          CarpetaInterna[] @relation("CarpetaInternaHierarchy")
+  documentos        Documento[]
   createdAt         DateTime         @default(now())
   updatedAt         DateTime         @updatedAt
 
@@ -163,7 +166,18 @@ model Documento {
   createdAt           DateTime        @default(now())
 
   soloLecturaImagen Boolean  @default(false)
+
+  // Subcarpeta de destino en GCS
+  subcarpetaNormaId String?
+  subcarpetaNorma   SubcarpetaNorma? @relation(fields: [subcarpetaNormaId], references: [id])
+  
+  // Carpeta interna opcional de destino en GCS
+  carpetaInternaId  String?
+  carpetaInterna    CarpetaInterna?  @relation(fields: [carpetaInternaId], references: [id])
+
   nombreBreve       String?
+  
+
   temaPrincipal     String?
   etiquetas         String[]
   tipoNorma         String?

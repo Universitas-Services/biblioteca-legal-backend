@@ -26,15 +26,15 @@ export class UploadDocumentoDto {
   @IsNotEmpty()
   nombreBreve: string;
 
-  @ApiProperty({ example: 'Derecho Mercantil' })
-  @IsString()
+  @ApiProperty({ description: 'ID de la SubcarpetaNorma destino (obligatorio)' })
+  @IsUUID('4')
   @IsNotEmpty()
-  temaPrincipal: string;
+  subcarpetaNormaId: string;
 
-  @ApiProperty({ example: 'Ley' })
-  @IsString()
-  @IsNotEmpty()
-  tipoNorma: string;
+  @ApiProperty({ required: false, description: 'ID de CarpetaInterna destino (opcional)' })
+  @IsOptional()
+  @IsUUID('4')
+  carpetaInternaId?: string;
 
   @ApiProperty({ example: 'Gaceta Oficial Extraordinaria' })
   @IsString()
