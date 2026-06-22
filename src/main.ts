@@ -14,11 +14,14 @@ async function bootstrap() {
     }),
   );
 
+  app.enableCors();
+
   const config = new DocumentBuilder()
     .setTitle('Biblioteca Legal API')
     .setDescription('API para gestión de documentos legales')
     .setVersion('1.0')
     .addBearerAuth()
+    .addServer('/', 'Entorno actual (relativo)')
     .build();
 
   const document = SwaggerModule.createDocument(app, config);
