@@ -15,6 +15,7 @@ import { NotificacionesModule } from './notificaciones/notificaciones.module';
 import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { EspecialidadModule } from './common/especialidad/especialidad.module';
 import { MetadatasModule } from './metadatas/metadatas.module';
+import { BibliotecaLegalModule } from './biblioteca-legal/biblioteca-legal.module';
 
 @Module({
   imports: [
@@ -32,6 +33,7 @@ import { MetadatasModule } from './metadatas/metadatas.module';
     NotificacionesModule,
     CloudinaryModule,
     MetadatasModule,
+    BibliotecaLegalModule,
   ],
   controllers: [AppController],
   providers: [AppService],
