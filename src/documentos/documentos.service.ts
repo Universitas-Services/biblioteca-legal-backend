@@ -1,10 +1,11 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { EstadoDocumento, EstadoLegal, Prisma } from '@prisma/client';
 import { StorageService } from '../storage/storage.service';
 import { PrismaService } from '../prisma/prisma.service';
 import { UploadDocumentoDto } from './dto/upload-documento.dto';
 import { UpdateDocumentoDto } from './dto/update-documento.dto';
+import { ReformaDocumentoDto } from './dto/reforma-documento.dto';
 import { PublicQueryDto } from './dto/public-query.dto';
 import { AdminDocumentosQueryDto } from './dto/admin-documentos-query.dto';
 import {
@@ -100,7 +101,15 @@ export class DocumentosService {
     };
   }
 
-  async procesarCarga(file: Express.Multer.File, data: UploadDocumentoDto, curadorId: string) {
+  async procesarCarga(
+    file: Express.Multer.File | undefined,
+    gacetaFile: Express.Multer.File | undefined,
+    data: UploadDocumentoDto,
+    curadorId: string,
+  ) {
+    if (!file) {
+      throw new BadRequestException('El archivo principal (file) es requerido');
+    }
     await this.validarDuplicidad.validar(
       data.tituloIntegro,
       data.enteEmisor,
@@ -115,6 +124,10 @@ export class DocumentosService {
     await this.especialidad.assertCuradorPuedeSubirTema(curadorId, destino.temaPrincipal);
 
     const cloudUrl = await this.storage.uploadDocument(file, 'pendientes');
+    let gacetaCloudUrl: string | null = null;
+    if (gacetaFile) {
+      gacetaCloudUrl = await this.storage.uploadDocument(gacetaFile, 'pendientes');
+    }
     const revisorAsignadoId = await this.asignacionRevisor.asignarPorTema(destino.temaPrincipal);
 
     const nuevoDoc = await this.prisma.client.documento.create({
@@ -122,8 +135,10 @@ export class DocumentosService {
         titulo: data.titulo,
         tituloIntegro: data.tituloIntegro,
         archivoOriginalUrl: cloudUrl,
+        gacetaPdfUrl: gacetaCloudUrl,
         estado: EstadoDocumento.PENDIENTE_REVISION,
         soloLecturaImagen: data.soloLecturaImagen ?? false,
+        ocrHabilitado: data.ocrHabilitado ?? false,
         nombreBreve: data.nombreBreve,
         temaPrincipal: destino.temaPrincipal,
         etiquetas: data.etiquetas ?? [],
@@ -135,6 +150,10 @@ export class DocumentosService {
         numeroGaceta: data.numeroGaceta,
         resumen: data.resumen,
         palabrasClave: data.palabrasClave ?? [],
+        pais: data.pais,
+        metadatos: (data.metadatos as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+        jerarquiaSuperiorId: data.jerarquiaSuperiorId,
+        documentoRelacionadoId: data.documentoRelacionadoId,
         curadorId,
         revisorAsignadoId,
         categorias: { connect: data.categoriaIds.map(id => ({ id })) },
@@ -150,13 +169,63 @@ export class DocumentosService {
   }
 
   async procesarReforma(
-    file: Express.Multer.File,
-    data: UploadDocumentoDto,
+    file: Express.Multer.File | undefined,
+    gacetaFile: Express.Multer.File | undefined,
+    data: Omit<ReformaDocumentoDto, 'leyViejaId'>,
     leyViejaId: string,
     curadorId: string,
   ) {
+    if (!file) {
+      throw new BadRequestException('El archivo principal (file) es requerido');
+    }
     const leyVieja = await this.findOne(leyViejaId);
-    const resultado = await this.procesarCarga(file, data, curadorId);
+
+    const destino = await this.resolverCarpetaDestino(
+      data.subcarpetaNormaId,
+      data.carpetaInternaId,
+    );
+
+    const cloudUrl = await this.storage.uploadDocument(file, 'pendientes');
+    let gacetaCloudUrl: string | null = null;
+    if (gacetaFile) {
+      gacetaCloudUrl = await this.storage.uploadDocument(gacetaFile, 'pendientes');
+    }
+
+    const nuevaLey = await this.prisma.client.documento.create({
+      data: {
+        titulo: data.titulo,
+        tituloIntegro: data.tituloIntegro,
+        archivoOriginalUrl: cloudUrl,
+        gacetaPdfUrl: gacetaCloudUrl,
+        estado: EstadoDocumento.PENDIENTE_REVISION,
+        soloLecturaImagen: data.soloLecturaImagen ?? false,
+        ocrHabilitado: data.ocrHabilitado ?? false,
+        nombreBreve: data.nombreBreve,
+        temaPrincipal: destino.temaPrincipal,
+        tipoNorma: destino.tipoNorma,
+        subcarpetaNormaId: destino.subcarpetaNormaId,
+        carpetaInternaId: destino.carpetaInternaId,
+        enteEmisor: data.enteEmisor,
+        fechaPublicacion: data.fechaPublicacion,
+        numeroGaceta: data.numeroGaceta,
+        resumen: data.resumen,
+        palabrasClave: data.palabrasClave ?? [],
+        pais: data.pais,
+        metadatos: (data.metadatos as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+        jerarquiaSuperiorId: data.jerarquiaSuperiorId,
+        documentoRelacionadoId: data.documentoRelacionadoId,
+        esReforma: true,
+        reformaAId: leyViejaId,
+        curadorId,
+        revisorAsignadoId: leyVieja.revisorAsignadoId,
+        categorias: {
+          connect: data.categoriaIds?.length
+            ? data.categoriaIds.map(id => ({ id }))
+            : leyVieja.categorias.map(c => ({ id: c.id })),
+        },
+        matrizAId: data.matrizAId ?? leyVieja.matrizAId,
+      },
+    });
 
     const estadoAnterior = leyVieja.estadoLegal;
     await this.prisma.client.documento.update({
@@ -165,27 +234,23 @@ export class DocumentosService {
     });
     this.emitEstadoLegalCambio(leyViejaId, estadoAnterior, EstadoLegal.REFORMADA);
 
-    const documentoNuevo = await this.prisma.client.documento.update({
-      where: { id: resultado.documento.id },
-      data: {
-        esReforma: true,
-        reformaAId: leyViejaId,
-      },
-      include: { reformaA: true, categorias: true },
-    });
-
     return {
       message: 'Reforma registrada exitosamente',
-      documentoId: documentoNuevo.id,
-      documento: documentoNuevo,
+      documentoId: nuevaLey.id,
+      documento: nuevaLey,
     };
   }
 
   async procesarCargaBorrador(
-    file: Express.Multer.File,
+    file: Express.Multer.File | undefined,
+    gacetaFile: Express.Multer.File | undefined,
     data: UploadBorradorDto,
     curadorId: string,
   ) {
+    if (!file) {
+      throw new BadRequestException('El archivo principal (file) es requerido');
+    }
+
     if (data.enteEmisor && data.fechaPublicacion) {
       await this.validarDuplicidad.validar(
         data.tituloIntegro,
@@ -198,35 +263,40 @@ export class DocumentosService {
       await this.categoriasService.validarIdsAprobadas(data.categoriaIds);
     }
 
-    let temaPrincipal: string | null = null;
-    let tipoNorma: string | null = null;
+    let temaNombre: string | null = null;
+    let normaNombre: string | null = null;
 
     if (data.subcarpetaNormaId) {
       const destino = await this.resolverCarpetaDestino(
         data.subcarpetaNormaId,
         data.carpetaInternaId,
       );
-      temaPrincipal = destino.temaPrincipal;
-      tipoNorma = destino.tipoNorma;
+      temaNombre = destino.temaPrincipal;
+      normaNombre = destino.tipoNorma;
     }
 
-    if (temaPrincipal) {
-      await this.especialidad.assertCuradorPuedeSubirTema(curadorId, temaPrincipal);
+    if (temaNombre) {
+      await this.especialidad.assertCuradorPuedeSubirTema(curadorId, temaNombre);
     }
 
-    // Subir a la carpeta 'borradores' en GCS
     const cloudUrl = await this.storage.uploadDocument(file, 'borradores');
+    let gacetaCloudUrl: string | null = null;
+    if (gacetaFile) {
+      gacetaCloudUrl = await this.storage.uploadDocument(gacetaFile, 'borradores');
+    }
 
     const nuevoDoc = await this.prisma.client.documento.create({
       data: {
         titulo: data.titulo,
         tituloIntegro: data.tituloIntegro,
         archivoOriginalUrl: cloudUrl,
+        gacetaPdfUrl: gacetaCloudUrl,
         estado: EstadoDocumento.BORRADOR,
         soloLecturaImagen: data.soloLecturaImagen ?? false,
+        ocrHabilitado: data.ocrHabilitado ?? false,
         nombreBreve: data.nombreBreve,
-        temaPrincipal: temaPrincipal,
-        tipoNorma: tipoNorma,
+        temaPrincipal: temaNombre,
+        tipoNorma: normaNombre,
         subcarpetaNormaId: data.subcarpetaNormaId ?? null,
         carpetaInternaId: data.carpetaInternaId ?? null,
         enteEmisor: data.enteEmisor,
@@ -235,8 +305,12 @@ export class DocumentosService {
         resumen: data.resumen,
         etiquetas: data.etiquetas ?? [],
         palabrasClave: data.palabrasClave ?? [],
+        pais: data.pais,
+        metadatos: (data.metadatos as Prisma.InputJsonValue) ?? Prisma.JsonNull,
+        jerarquiaSuperiorId: data.jerarquiaSuperiorId,
+        documentoRelacionadoId: data.documentoRelacionadoId,
         curadorId,
-        ...(data.categoriaIds && data.categoriaIds.length > 0
+        ...(data.categoriaIds?.length
           ? { categorias: { connect: data.categoriaIds.map(id => ({ id })) } }
           : {}),
         ...(data.matrizAId ? { matrizAId: data.matrizAId } : {}),
@@ -273,6 +347,11 @@ export class DocumentosService {
 
     // Mover de la carpeta 'borradores' a la carpeta 'pendientes'
     const newCloudUrl = await this.storage.moveFile(documento.archivoOriginalUrl, 'pendientes');
+    let newGacetaUrl = documento.gacetaPdfUrl;
+    if (documento.gacetaPdfUrl) {
+      newGacetaUrl = await this.storage.moveFile(documento.gacetaPdfUrl, 'pendientes');
+    }
+
     const revisorAsignadoId = await this.asignacionRevisor.asignarPorTema(destino.temaPrincipal);
 
     const updatedDoc = await this.prisma.client.documento.update({
@@ -284,6 +363,7 @@ export class DocumentosService {
         subcarpetaNormaId: destino.subcarpetaNormaId,
         carpetaInternaId: destino.carpetaInternaId,
         archivoOriginalUrl: newCloudUrl,
+        gacetaPdfUrl: newGacetaUrl,
         revisorAsignadoId,
         categorias: { connect: data.categoriaIds.map(id => ({ id })) },
       },
@@ -529,36 +609,53 @@ export class DocumentosService {
     return { url, documentoId: documento.id };
   }
 
-  async update(id: string, updateData: UpdateDocumentoDto, file?: Express.Multer.File) {
+  async update(
+    id: string,
+    updateData: UpdateDocumentoDto,
+    file?: Express.Multer.File,
+    gacetaFile?: Express.Multer.File,
+  ) {
     const documento = await this.findOne(id);
 
     let cloudUrl = documento.archivoOriginalUrl;
+    let gacetaCloudUrl = documento.gacetaPdfUrl;
+
     if (file) {
       cloudUrl = await this.storage.uploadDocument(
         file,
-        documento.estado === EstadoDocumento.RECHAZADO ? 'pendientes' : undefined,
+        documento.estado === EstadoDocumento.BORRADOR ? 'borradores' : 'pendientes',
       );
     }
 
+    if (gacetaFile) {
+      gacetaCloudUrl = await this.storage.uploadDocument(
+        gacetaFile,
+        documento.estado === EstadoDocumento.BORRADOR ? 'borradores' : 'pendientes',
+      );
+    }
+
+    const {
+      categoriaIds,
+      matrizAId,
+      matrizBIds,
+      subcarpetaNormaId,
+      carpetaInternaId,
+      metadatos,
+      ...simpleData
+    } = updateData;
+
     const data: Prisma.DocumentoUpdateInput = {
-      titulo: updateData.titulo,
-      tituloIntegro: updateData.tituloIntegro,
+      ...simpleData,
       archivoOriginalUrl: cloudUrl,
-      soloLecturaImagen: updateData.soloLecturaImagen,
-      nombreBreve: updateData.nombreBreve,
-      etiquetas: updateData.etiquetas,
-      enteEmisor: updateData.enteEmisor,
-      fechaPublicacion: updateData.fechaPublicacion,
-      numeroGaceta: updateData.numeroGaceta,
-      resumen: updateData.resumen,
-      palabrasClave: updateData.palabrasClave,
+      gacetaPdfUrl: gacetaCloudUrl,
     };
 
-    if (updateData.subcarpetaNormaId) {
-      const destino = await this.resolverCarpetaDestino(
-        updateData.subcarpetaNormaId,
-        updateData.carpetaInternaId,
-      );
+    if (metadatos !== undefined) {
+      data.metadatos = metadatos === null ? Prisma.JsonNull : (metadatos as Prisma.InputJsonValue);
+    }
+
+    if (subcarpetaNormaId) {
+      const destino = await this.resolverCarpetaDestino(subcarpetaNormaId, carpetaInternaId);
       data.temaPrincipal = destino.temaPrincipal;
       data.tipoNorma = destino.tipoNorma;
       data.subcarpetaNorma = destino.subcarpetaNormaId
@@ -574,20 +671,18 @@ export class DocumentosService {
     }
 
     // MatrizA: connect si se envía ID, disconnect si se envía null/string vacío
-    if (updateData.matrizAId !== undefined) {
-      data.matrizA = updateData.matrizAId
-        ? { connect: { id: updateData.matrizAId } }
-        : { disconnect: true };
+    if (matrizAId !== undefined) {
+      data.matrizA = matrizAId ? { connect: { id: matrizAId } } : { disconnect: true };
     }
 
-    if (updateData.categoriaIds?.length) {
-      await this.categoriasService.validarIdsAprobadas(updateData.categoriaIds);
-      data.categorias = { set: updateData.categoriaIds.map(cid => ({ id: cid })) };
+    if (categoriaIds?.length) {
+      await this.categoriasService.validarIdsAprobadas(categoriaIds);
+      data.categorias = { set: categoriaIds.map(cid => ({ id: cid })) };
     }
 
     // MatrizB: set reemplaza todas las relaciones actuales
-    if (updateData.matrizBIds !== undefined) {
-      data.matrizB = { set: updateData.matrizBIds.map(id => ({ id })) };
+    if (matrizBIds !== undefined) {
+      data.matrizB = { set: matrizBIds.map(id => ({ id })) };
     }
 
     const updatedDoc = await this.prisma.client.documento.update({
@@ -623,6 +718,30 @@ export class DocumentosService {
 
   async cambiarEstado(id: string, nuevoEstado: EstadoDocumento) {
     const documento = await this.findOne(id);
+
+    // Si se pasa a pendiente revisión y el original estaba en borrador, mover archivos
+    if (
+      nuevoEstado === EstadoDocumento.PENDIENTE_REVISION &&
+      documento.estado === EstadoDocumento.BORRADOR
+    ) {
+      const newCloudUrl = await this.storage.moveFile(documento.archivoOriginalUrl, 'pendientes');
+      let newGacetaUrl: string | null = documento.gacetaPdfUrl;
+      if (documento.gacetaPdfUrl) {
+        newGacetaUrl = await this.storage.moveFile(documento.gacetaPdfUrl, 'pendientes');
+      }
+
+      await this.prisma.client.documento.update({
+        where: { id },
+        data: {
+          estado: nuevoEstado,
+          archivoOriginalUrl: newCloudUrl,
+          gacetaPdfUrl: newGacetaUrl,
+        },
+      });
+      this.emitEstadoCambio(id, documento.estado, nuevoEstado);
+      return;
+    }
+
     const updated = await this.prisma.client.documento.update({
       where: { id },
       data: { estado: nuevoEstado },

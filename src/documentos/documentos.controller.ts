@@ -12,7 +12,7 @@ import {
   Body,
   UseGuards,
 } from '@nestjs/common';
-import { FileInterceptor } from '@nestjs/platform-express';
+import { FileFieldsInterceptor } from '@nestjs/platform-express';
 import { DocumentosService } from './documentos.service';
 import { StorageService } from '../storage/storage.service';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -50,6 +50,13 @@ export class DocumentosController {
 
   @Get('public')
   @ApiOperation({ summary: 'Listado público de documentos vigentes' })
+  @ApiResponse({
+    status: 200,
+    description: `Retorna la lista de documentos.
+Nota sobre la jerarquía:
+- \`subcarpetaNormaId\` representa el Nivel 2 (Ej: Legislación).
+- \`carpetaInternaId\` representa Niveles 3 o 4 (Ej: Nacional o Leyes Orgánicas).`,
+  })
   findPublic(@Query() query: PublicQueryDto) {
     return this.documentosService.findPublic(query);
   }
@@ -64,20 +71,42 @@ export class DocumentosController {
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Subir documento (Curador)',
-    description:
-      'Sube un nuevo archivo al bucket en la ruta provisional /pendientes/ y crea el registro en estado PENDIENTE_REVISION. El temaPrincipal y tipoNorma se derivan automáticamente de subcarpetaNormaId. Se asigna un revisor automáticamente según el tema.',
+    description: `Sube uno o dos archivos (Documento PDF y Gaceta PDF) a la ruta provisional /pendientes/ en GCS y crea el registro en estado PENDIENTE_REVISION. 
+El sistema enruta el documento y deduce el Tema basándose en los IDs provistos.
+
+### Enrutamiento Recursivo hacia GCS (Niveles)
+Cuando el documento es publicado, el sistema construye la ruta final resolviendo el árbol de carpetas de forma automática:
+- **Nivel 1 (Tema Principal):** Auto-derivado (ej. "Derecho Urbanístico")
+- **Nivel 2 (Subcarpeta Norma):** Según \`subcarpetaNormaId\` (ej. "Legislación")
+- **Nivel 3 (Jurisdicción):** Padre de la Carpeta Interna (ej. "Nacional")
+- **Nivel 4 (Subtipo de Norma):** Según \`carpetaInternaId\` (ej. "Leyes Orgánicas")
+
+*Nota: Con solo enviar el ID del Nivel 4 (Leyes Orgánicas), el backend detecta que su padre es el Nivel 3 (Nacional) y arma la ruta completa.*
+
+Ruta Final Resultante: \`tema-principal/derecho-urbanistico/legislacion/nacional/leyes-organicas/\``,
   })
   @ApiConsumes('multipart/form-data')
   @ApiBody({ type: UploadDocumentoRequestDto })
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CURADOR, Role.ADMIN)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'file', maxCount: 1 },
+      { name: 'gacetaFile', maxCount: 1 },
+    ]),
+  )
   async uploadDocumento(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile()
+    files: {
+      file?: Express.Multer.File[];
+      gacetaFile?: Express.Multer.File[];
+    },
     @Body() body: UploadDocumentoDto,
     @CurrentUser() user: JwtPayloadUser,
   ) {
-    return this.documentosService.procesarCarga(file, body, user.sub);
+    const mainFile = files?.file?.[0];
+    const gacetaFile = files?.gacetaFile?.[0];
+    return this.documentosService.procesarCarga(mainFile, gacetaFile, body, user.sub);
   }
 
   @Post('reforma')
@@ -86,14 +115,31 @@ export class DocumentosController {
   @ApiConsumes('multipart/form-data')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CURADOR, Role.ADMIN)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'file', maxCount: 1 },
+      { name: 'gacetaFile', maxCount: 1 },
+    ]),
+  )
   async reforma(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile()
+    files: {
+      file?: Express.Multer.File[];
+      gacetaFile?: Express.Multer.File[];
+    },
     @Body() body: ReformaDocumentoDto,
     @CurrentUser() user: JwtPayloadUser,
   ) {
+    const mainFile = files?.file?.[0];
+    const gacetaFile = files?.gacetaFile?.[0];
     const { leyViejaId, ...uploadData } = body;
-    return this.documentosService.procesarReforma(file, uploadData, leyViejaId, user.sub);
+    return this.documentosService.procesarReforma(
+      mainFile,
+      gacetaFile,
+      uploadData,
+      leyViejaId,
+      user.sub,
+    );
   }
 
   @Post('borrador')
@@ -106,13 +152,24 @@ export class DocumentosController {
   @ApiConsumes('multipart/form-data')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CURADOR)
-  @UseInterceptors(FileInterceptor('file'))
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'file', maxCount: 1 },
+      { name: 'gacetaFile', maxCount: 1 },
+    ]),
+  )
   async uploadBorrador(
-    @UploadedFile() file: Express.Multer.File,
+    @UploadedFile()
+    files: {
+      file?: Express.Multer.File[];
+      gacetaFile?: Express.Multer.File[];
+    },
     @Body() body: UploadBorradorDto,
     @CurrentUser() user: JwtPayloadUser,
   ) {
-    return this.documentosService.procesarCargaBorrador(file, body, user.sub);
+    const mainFile = files?.file?.[0];
+    const gacetaFile = files?.gacetaFile?.[0];
+    return this.documentosService.procesarCargaBorrador(mainFile, gacetaFile, body, user.sub);
   }
 
   @Patch('borrador/:id/publicar')
@@ -188,6 +245,14 @@ export class DocumentosController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CLIENTE, Role.CURADOR, Role.REVISOR, Role.ADMIN)
+  @ApiOperation({ summary: 'Obtener todos los documentos (sin filtros)' })
+  @ApiResponse({
+    status: 200,
+    description: `Retorna la lista de documentos. 
+Nota sobre jerarquía en la respuesta:
+- \`subcarpetaNormaId\`: Nivel 2 (Ej: Legislación)
+- \`carpetaInternaId\`: Nivel 3 o 4 (Ej: Nacional o Leyes Orgánicas)`,
+  })
   findAll() {
     return this.documentosService.findAll();
   }
@@ -196,6 +261,14 @@ export class DocumentosController {
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CLIENTE, Role.CURADOR, Role.REVISOR, Role.ADMIN)
+  @ApiOperation({ summary: 'Obtener documento por ID' })
+  @ApiResponse({
+    status: 200,
+    description: `Retorna el detalle del documento.
+Nota sobre jerarquía en la respuesta:
+- \`subcarpetaNormaId\`: Nivel 2 (Ej: Legislación)
+- \`carpetaInternaId\`: Nivel 3 o 4 (Ej: Nacional o Leyes Orgánicas)`,
+  })
   findOne(@Param('id') id: string) {
     return this.documentosService.findOne(id);
   }
@@ -219,28 +292,52 @@ export class DocumentosController {
       'Permite modificar los metadatos o reemplazar el archivo PDF. Si el documento estaba en estado RECHAZADO, al editarse pasa automáticamente a PENDIENTE_REVISION para que sea evaluado nuevamente.',
   })
   @Roles(Role.CURADOR, Role.REVISOR, Role.ADMIN)
-  @UseInterceptors(FileInterceptor('file'), AuditLogInterceptor)
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'file', maxCount: 1 },
+      { name: 'gacetaFile', maxCount: 1 },
+    ]),
+    AuditLogInterceptor,
+  )
   @ApiConsumes('multipart/form-data')
   editar(
     @Param('id') id: string,
     @Body() updateData: UpdateDocumentoDto,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile()
+    files?: {
+      file?: Express.Multer.File[];
+      gacetaFile?: Express.Multer.File[];
+    },
   ) {
-    return this.documentosService.update(id, updateData, file);
+    const mainFile = files?.file?.[0];
+    const gacetaFile = files?.gacetaFile?.[0];
+    return this.documentosService.update(id, updateData, mainFile, gacetaFile);
   }
 
   @Patch(':id')
   @ApiBearerAuth()
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CURADOR, Role.ADMIN, Role.REVISOR)
-  @UseInterceptors(FileInterceptor('file'), AuditLogInterceptor)
+  @UseInterceptors(
+    FileFieldsInterceptor([
+      { name: 'file', maxCount: 1 },
+      { name: 'gacetaFile', maxCount: 1 },
+    ]),
+    AuditLogInterceptor,
+  )
   @ApiConsumes('multipart/form-data')
   update(
     @Param('id') id: string,
     @Body() updateData: UpdateDocumentoDto,
-    @UploadedFile() file?: Express.Multer.File,
+    @UploadedFile()
+    files?: {
+      file?: Express.Multer.File[];
+      gacetaFile?: Express.Multer.File[];
+    },
   ) {
-    return this.documentosService.update(id, updateData, file);
+    const mainFile = files?.file?.[0];
+    const gacetaFile = files?.gacetaFile?.[0];
+    return this.documentosService.update(id, updateData, mainFile, gacetaFile);
   }
 
   @Delete(':id')

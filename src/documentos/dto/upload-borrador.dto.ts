@@ -60,6 +60,49 @@ export class UploadBorradorDto {
   @IsOptional()
   resumen?: string;
 
+  @ApiProperty({ required: false, description: 'Indica si el PDF tiene OCR habilitado' })
+  @IsBoolean()
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  ocrHabilitado?: boolean;
+
+  @ApiProperty({ required: false, description: 'País de origen de la norma' })
+  @IsString()
+  @IsOptional()
+  pais?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'ID del documento de jerarquía superior (ej. Ley que avala el reglamento)',
+  })
+  @IsUUID('4')
+  @IsOptional()
+  jerarquiaSuperiorId?: string;
+
+  @ApiProperty({ required: false, description: 'ID de otro documento relacionado' })
+  @IsUUID('4')
+  @IsOptional()
+  documentoRelacionadoId?: string;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'Objeto JSON en string con metadatos específicos del tipo documental (ej. tribunal, ISBN, ponente, etc.)',
+    example: '{"tribunal": "Tribunal Supremo de Justicia", "numeroExpediente": "12345"}',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value) as unknown;
+      } catch {
+        return value as unknown;
+      }
+    }
+    return value as unknown;
+  })
+  metadatos?: Record<string, unknown>;
+
   @ApiProperty({ required: false, type: [String] })
   @IsArray()
   @IsOptional()

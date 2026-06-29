@@ -67,9 +67,18 @@ export class WorkflowsService {
         documento.carpetaInternaId,
       );
       const nuevaUrl = await this.storageService.moveFile(documento.archivoOriginalUrl, destino);
+
+      let nuevaGacetaUrl: string | null = documento.gacetaPdfUrl;
+      if (documento.gacetaPdfUrl) {
+        nuevaGacetaUrl = await this.storageService.moveFile(documento.gacetaPdfUrl, destino);
+      }
+
       await this.prisma.client.documento.update({
         where: { id: documentoId },
-        data: { archivoOriginalUrl: nuevaUrl },
+        data: {
+          archivoOriginalUrl: nuevaUrl,
+          gacetaPdfUrl: nuevaGacetaUrl,
+        },
       });
     }
 

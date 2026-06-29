@@ -26,12 +26,26 @@ export class UploadDocumentoDto {
   @IsNotEmpty()
   nombreBreve: string;
 
-  @ApiProperty({ description: 'ID de la SubcarpetaNorma destino (obligatorio)' })
+  @ApiProperty({
+    description: `ID de la SubcarpetaNorma destino (obligatorio). 
+Define la base de la ruta GCS.
+- Nivel 1 (Tema Principal): Se infiere automáticamente (ej. "Derecho Urbanístico").
+- Nivel 2 (Subcarpeta de Norma): Definido por este ID (ej. "Legislación").
+Ejemplo ruta base: "tema-principal/derecho-urbanistico/legislacion/"`,
+  })
   @IsUUID('4')
   @IsNotEmpty()
   subcarpetaNormaId: string;
 
-  @ApiProperty({ required: false, description: 'ID de CarpetaInterna destino (opcional)' })
+  @ApiProperty({
+    required: false,
+    description: `ID de CarpetaInterna destino (opcional). 
+Define los subniveles adicionales (recursivos) de la ruta GCS.
+- Nivel 3 (Jurisdicción): (ej. "Nacional", "Estadal").
+- Nivel 4 (Subtipo de Norma): (ej. "Leyes Orgánicas", "Leyes Ordinarias").
+*Nota: Si seleccionas el ID de una carpeta de Nivel 4, el backend resolverá automáticamente sus padres (Nivel 3) para construir la ruta.*
+Ejemplo de ruta final resultante: "tema-principal/derecho-urbanistico/legislacion/nacional/leyes-organicas/"`,
+  })
   @IsOptional()
   @IsUUID('4')
   carpetaInternaId?: string;
@@ -61,6 +75,49 @@ export class UploadDocumentoDto {
   @IsOptional()
   @Transform(({ value }) => value === 'true' || value === true)
   soloLecturaImagen?: boolean;
+
+  @ApiProperty({ required: false, description: 'Indica si el PDF tiene OCR habilitado' })
+  @IsBoolean()
+  @IsOptional()
+  @Transform(({ value }) => value === 'true' || value === true)
+  ocrHabilitado?: boolean;
+
+  @ApiProperty({ required: false, description: 'País de origen de la norma' })
+  @IsString()
+  @IsOptional()
+  pais?: string;
+
+  @ApiProperty({
+    required: false,
+    description: 'ID del documento de jerarquía superior (ej. Ley que avala el reglamento)',
+  })
+  @IsUUID('4')
+  @IsOptional()
+  jerarquiaSuperiorId?: string;
+
+  @ApiProperty({ required: false, description: 'ID de otro documento relacionado' })
+  @IsUUID('4')
+  @IsOptional()
+  documentoRelacionadoId?: string;
+
+  @ApiProperty({
+    required: false,
+    description:
+      'Objeto JSON en string con metadatos específicos del tipo documental (ej. tribunal, ISBN, ponente, etc.)',
+    example: '{"tribunal": "Tribunal Supremo de Justicia", "numeroExpediente": "12345"}',
+  })
+  @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'string') {
+      try {
+        return JSON.parse(value) as unknown;
+      } catch {
+        return value as unknown;
+      }
+    }
+    return value as unknown;
+  })
+  metadatos?: Record<string, unknown>;
 
   @ApiProperty({ required: false, type: [String] })
   @IsArray()
