@@ -22,4 +22,18 @@ export class UpdateDocumentoDto extends PartialType(UploadDocumentoDto) {
   @IsEnum(EstadoLegal)
   @IsOptional()
   estadoLegal?: EstadoLegal;
+
+  @ApiPropertyOptional({
+    type: 'string',
+    format: 'binary',
+    description: 'Reemplazar Documento PDF principal',
+  })
+  file?: any;
+
+  @ApiPropertyOptional({
+    type: 'string',
+    format: 'binary',
+    description: 'Reemplazar Documento PDF de Gaceta Oficial',
+  })
+  gacetaFile?: any;
 }
