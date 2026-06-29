@@ -53,9 +53,12 @@ export class DocumentosController {
   @ApiResponse({
     status: 200,
     description: `Retorna la lista de documentos.
-Nota sobre la jerarquía:
-- \`subcarpetaNormaId\` representa el Nivel 2 (Ej: Legislación).
-- \`carpetaInternaId\` representa Niveles 3 o 4 (Ej: Nacional o Leyes Orgánicas).`,
+Nota sobre la respuesta (Nuevos campos y Metadatos):
+- \`subcarpetaNormaId\`: Nivel 2 (Ej: Legislación).
+- \`carpetaInternaId\`: Nivel 3 o 4 (Ej: Nacional o Leyes Orgánicas).
+- \`metadatos\`: Objeto JSON dinámico con propiedades específicas del tipo documental.
+- \`gacetaPdfUrl\`: URL directa en GCS al PDF de la Gaceta Oficial (si aplica).
+- Campos universales incluidos: \`ocrHabilitado\`, \`pais\`, \`jerarquiaSuperiorId\`, \`documentoRelacionadoId\`.`,
   })
   findPublic(@Query() query: PublicQueryDto) {
     return this.documentosService.findPublic(query);
@@ -63,6 +66,11 @@ Nota sobre la jerarquía:
 
   @Get('seo/:nombreBreve')
   @ApiOperation({ summary: 'Metadatos SEO sin URL del PDF' })
+  @ApiResponse({
+    status: 200,
+    description: `Retorna la metadata SEO del documento.
+Incluye los campos: \`metadatos\` (JSON dinámico), \`ocrHabilitado\`, \`pais\`, \`jerarquiaSuperiorId\`, \`documentoRelacionadoId\`, y \`gacetaPdfUrl\`.`,
+  })
   findSeo(@Param('nombreBreve') nombreBreve: string) {
     return this.documentosService.findSeoByNombreBreve(nombreBreve);
   }
@@ -194,6 +202,11 @@ Ruta Final Resultante: \`tema-principal/derecho-urbanistico/legislacion/nacional
   @UseGuards(JwtAuthGuard, RolesGuard, MuroCompletoGuard)
   @Roles(Role.CLIENTE)
   @ApiOperation({ summary: 'Visor PDF con muro de datos completo' })
+  @ApiResponse({
+    status: 200,
+    description: `Registra la vista y retorna el acceso.
+Los metadatos del muro de datos (si el frontend los solicita del documento) incluyen: \`metadatos\` (JSON), \`gacetaPdfUrl\`, \`ocrHabilitado\`, \`pais\`, \`jerarquiaSuperiorId\`, y \`documentoRelacionadoId\`.`,
+  })
   visor(@Param('id') id: string, @CurrentUser() user: JwtPayloadUser) {
     return this.documentosService.registrarVisor(user.sub, id);
   }
@@ -205,7 +218,8 @@ Ruta Final Resultante: \`tema-principal/derecho-urbanistico/legislacion/nacional
   @ApiOperation({ summary: 'Listado de documentos para el panel de Administrador' })
   @ApiResponse({
     status: 200,
-    description: 'Retorna los documentos con conteo de notas y preview de la última nota.',
+    description: `Retorna los documentos con conteo de notas y preview de la última nota.
+Incluye los campos: \`metadatos\` (JSON), \`gacetaPdfUrl\`, \`ocrHabilitado\`, \`pais\`, \`jerarquiaSuperiorId\`, \`documentoRelacionadoId\` y la jerarquía de carpetas.`,
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({ status: 403, description: 'Prohibido, requiere rol ADMIN.' })
@@ -220,7 +234,8 @@ Ruta Final Resultante: \`tema-principal/derecho-urbanistico/legislacion/nacional
   @ApiOperation({ summary: 'Bandeja del Curador: Listado de sus documentos con notas internas.' })
   @ApiResponse({
     status: 200,
-    description: 'Retorna los documentos asignados al curador que contengan notas.',
+    description: `Retorna los documentos asignados al curador que contengan notas.
+Incluye los campos: \`metadatos\` (JSON), \`gacetaPdfUrl\`, \`ocrHabilitado\`, \`pais\`, \`jerarquiaSuperiorId\`, \`documentoRelacionadoId\` y la jerarquía de carpetas.`,
   })
   @ApiResponse({ status: 401, description: 'No autorizado.' })
   @ApiResponse({ status: 403, description: 'Prohibido, requiere rol CURADOR.' })
@@ -235,7 +250,8 @@ Ruta Final Resultante: \`tema-principal/derecho-urbanistico/legislacion/nacional
   @ApiOperation({ summary: 'Listado de documentos del curador con filtros, búsqueda y paginación' })
   @ApiResponse({
     status: 200,
-    description: 'Retorna los documentos del curador filtrados y paginados.',
+    description: `Retorna los documentos del curador filtrados y paginados.
+Incluye los campos: \`metadatos\` (JSON), \`gacetaPdfUrl\`, \`ocrHabilitado\`, \`pais\`, \`jerarquiaSuperiorId\`, \`documentoRelacionadoId\` y la jerarquía de carpetas.`,
   })
   findCuradorList(@Query() query: CuradorDocumentosQueryDto, @CurrentUser() user: JwtPayloadUser) {
     return this.documentosService.findCuradorList(user.sub, query);
@@ -249,9 +265,12 @@ Ruta Final Resultante: \`tema-principal/derecho-urbanistico/legislacion/nacional
   @ApiResponse({
     status: 200,
     description: `Retorna la lista de documentos. 
-Nota sobre jerarquía en la respuesta:
-- \`subcarpetaNormaId\`: Nivel 2 (Ej: Legislación)
-- \`carpetaInternaId\`: Nivel 3 o 4 (Ej: Nacional o Leyes Orgánicas)`,
+Nota sobre la respuesta (Nuevos campos y Metadatos):
+- \`subcarpetaNormaId\`: Nivel 2 (Ej: Legislación).
+- \`carpetaInternaId\`: Nivel 3 o 4 (Ej: Nacional o Leyes Orgánicas).
+- \`metadatos\`: Objeto JSON dinámico con propiedades específicas del tipo documental.
+- \`gacetaPdfUrl\`: URL directa en GCS al PDF de la Gaceta Oficial (si aplica).
+- Campos universales incluidos: \`ocrHabilitado\`, \`pais\`, \`jerarquiaSuperiorId\`, \`documentoRelacionadoId\`.`,
   })
   findAll() {
     return this.documentosService.findAll();
@@ -265,9 +284,12 @@ Nota sobre jerarquía en la respuesta:
   @ApiResponse({
     status: 200,
     description: `Retorna el detalle del documento.
-Nota sobre jerarquía en la respuesta:
-- \`subcarpetaNormaId\`: Nivel 2 (Ej: Legislación)
-- \`carpetaInternaId\`: Nivel 3 o 4 (Ej: Nacional o Leyes Orgánicas)`,
+Nota sobre la respuesta (Nuevos campos y Metadatos):
+- \`subcarpetaNormaId\`: Nivel 2 (Ej: Legislación).
+- \`carpetaInternaId\`: Nivel 3 o 4 (Ej: Nacional o Leyes Orgánicas).
+- \`metadatos\`: Objeto JSON dinámico con propiedades específicas del tipo documental.
+- \`gacetaPdfUrl\`: URL directa en GCS al PDF de la Gaceta Oficial (si aplica).
+- Campos universales incluidos: \`ocrHabilitado\`, \`pais\`, \`jerarquiaSuperiorId\`, \`documentoRelacionadoId\`.`,
   })
   findOne(@Param('id') id: string) {
     return this.documentosService.findOne(id);

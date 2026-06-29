@@ -147,4 +147,20 @@ export class UploadBorradorDto {
     typeof value === 'string' ? value.split(',').map((s: string) => s.trim()) : (value as string[]),
   )
   matrizBIds?: string[];
+
+  @ApiProperty({
+    required: false,
+    type: 'string',
+    format: 'binary',
+    description: 'Documento PDF principal',
+  })
+  file?: any;
+
+  @ApiProperty({
+    required: false,
+    type: 'string',
+    format: 'binary',
+    description: 'Documento PDF de Gaceta Oficial',
+  })
+  gacetaFile?: any;
 }
