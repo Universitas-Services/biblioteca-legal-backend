@@ -160,12 +160,17 @@ model Documento {
   titulo              String
   tituloIntegro       String
   archivoOriginalUrl  String
+  gacetaPdfUrl        String?
   estado              EstadoDocumento @default(PENDIENTE_REVISION)
   estadoLegal         EstadoLegal?
   ultimaActualizacion DateTime        @updatedAt
   createdAt           DateTime        @default(now())
 
   soloLecturaImagen Boolean  @default(false)
+  ocrHabilitado     Boolean  @default(false)
+
+  pais              String?
+  metadatos         Json?
 
   // Subcarpeta de destino en GCS
   subcarpetaNormaId String?
@@ -189,6 +194,14 @@ model Documento {
   reformaAId String?
   reformaA   Documento?  @relation("ReformasRelation", fields: [reformaAId], references: [id])
   reformas   Documento[] @relation("ReformasRelation")
+
+  jerarquiaSuperiorId    String?
+  jerarquiaSuperior      Documento?  @relation("JerarquiaDocumentos", fields: [jerarquiaSuperiorId], references: [id])
+  documentosSubordinados Documento[] @relation("JerarquiaDocumentos")
+
+  documentoRelacionadoId String?
+  documentoRelacionado   Documento?  @relation("DocumentosRelacionados", fields: [documentoRelacionadoId], references: [id])
+  relacionadosInversos   Documento[] @relation("DocumentosRelacionados")
 
   resumen       String?
   palabrasClave String[]

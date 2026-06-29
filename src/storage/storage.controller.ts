@@ -124,8 +124,9 @@ export class StorageController {
 
   @Post('subcarpeta/:subcarpetaId/carpeta-interna')
   @ApiOperation({
-    summary: 'Crear carpeta interna de primer nivel (BD + GCS)',
-    description: 'Primer nivel bajo un tipo de norma (ej: carpeta A).',
+    summary: 'Crear carpeta interna de primer nivel (Nivel 3) (BD + GCS)',
+    description:
+      'Crea una carpeta en el Nivel 3 (ej: "Nacional"). Será hija directa de una SubcarpetaNorma (Nivel 2).',
   })
   @ApiParam({
     name: 'subcarpetaId',
@@ -150,9 +151,9 @@ export class StorageController {
 
   @Post('carpeta-interna/:parentId/carpeta-interna')
   @ApiOperation({
-    summary: 'Crear carpeta interna hija (BD + GCS)',
+    summary: 'Crear carpeta interna anidada (Nivel 4+) (BD + GCS)',
     description:
-      'Subcarpeta anidada bajo otra carpeta interna (ej: A.1, A.1.1). Máximo 10 niveles.',
+      'Crea una subcarpeta anidada. Si el parentId pertenece al Nivel 3 (ej: "Nacional"), esta nueva carpeta será el Nivel 4 (ej: "Leyes Orgánicas").',
   })
   @ApiParam({ name: 'parentId', type: String, description: 'ID UUID de la carpeta interna padre' })
   createCarpetaInternaHija(

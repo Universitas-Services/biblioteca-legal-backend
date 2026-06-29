@@ -12,6 +12,8 @@
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
+    "seed": "npx ts-node prisma/scripts/seed.ts",
+    "seed:estructura": "npx ts-node prisma/scripts/seed-estructura.ts",
     "start": "nest start",
     "start:dev": "nest start --watch",
     "start:debug": "nest start --debug --watch",
