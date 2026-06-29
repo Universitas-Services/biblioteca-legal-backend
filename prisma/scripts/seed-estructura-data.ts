@@ -1,0 +1,88 @@
+export const BIBLIOTECAS_ESPECIALIZADAS = [
+  'Derecho Urbanístico',
+  'Gestión Integral de Residuos Sólidos (GIRS)',
+  'Contrataciones Públicas',
+  'Control Fiscal',
+  'Derecho Electoral',
+  'Derecho Administrativo',
+  'Derecho Laboral',
+];
+
+export const SUBCARPETAS = [
+  'Legislación',
+  'Jurisprudencia',
+  'Doctrina',
+  'Doctrina Administrativa',
+  'Instrumentos Internacionales',
+];
+
+export const CARPETAS_INTERNAS: Record<string, Record<string, string[]> | string[]> = {
+  'Legislación': {
+    'Nacional': [
+      'Constitución',
+      'Ley Orgánica',
+      'Ley Ordinaria',
+      'Ley Especial',
+      'Decreto Ley',
+      'Reglamento',
+      'Decreto',
+      'Resolución',
+      'Providencia',
+    ],
+    'Estadal': [
+      'Ley Estadal',
+      'Decreto Estadal',
+      'Resolución Estadal',
+    ],
+    'Municipal': [
+      'Ordenanza',
+      'Decreto Municipal',
+      'Acuerdo Municipal',
+    ],
+  },
+  'Jurisprudencia': {
+    'Nacional': [],
+    'Internacional': [],
+  },
+  'Doctrina': [
+    'Libros',
+    'Capítulos de Libros',
+    'Revistas Jurídicas',
+    'Artículos de Revista',
+    'Artículos Científicos',
+    'Artículos de Opinión',
+    'Ensayos',
+    'Monografías',
+    'Tesis',
+    'Ponencias',
+    'Conferencias',
+    'Comentarios Legislativos',
+    'Comentarios Jurisprudenciales',
+    'Informes Técnicos',
+    'Documentos de Investigación',
+  ],
+  'Doctrina Administrativa': [
+    'Dictámenes',
+    'Opiniones Jurídicas',
+    'Circulares',
+    'Instructivos',
+    'Memorandos',
+    'Consultas',
+    'Criterios Administrativos',
+    'Oficios',
+    'Comunicaciones Oficiales',
+    'Informes Administrativos',
+  ],
+  'Instrumentos Internacionales': [
+    'Tratados',
+    'Convenciones',
+    'Acuerdos',
+    'Protocolos',
+    'Cartas',
+    'Declaraciones',
+    'Pactos',
+    'Estatutos',
+    'Reglamentos Internacionales',
+    'Decisiones de Organismos Internacionales',
+  ],
+};
