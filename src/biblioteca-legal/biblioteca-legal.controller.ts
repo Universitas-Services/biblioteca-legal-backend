@@ -38,6 +38,9 @@ export class BibliotecaLegalController {
             'Documento que establece los lineamientos principales para el desarrollo urbanístico de la ciudad.',
           gcpFileName: 'tema-principal/derecho-urbanistico/legislacion/ley-ordinaria/plan-2024.pdf',
           fechaPublicacion: '2024-05-12T10:00:00Z',
+          numeroGaceta: 'G.O. 42.123',
+          municipio: 'Chacao',
+          estado: 'Miranda',
         },
       ],
     },
@@ -61,6 +64,9 @@ export class BibliotecaLegalController {
           resumen: true,
           archivoOriginalUrl: true,
           fechaPublicacion: true,
+          numeroGaceta: true,
+          estadoLegal: true,
+          metadatos: true,
         },
       });
 
@@ -81,12 +87,20 @@ export class BibliotecaLegalController {
           gcpFileName = doc.archivoOriginalUrl || '';
         }
 
+        // Extraer municipio y estado de los metadatos si existen
+        const metadatos = (doc.metadatos as Record<string, unknown>) || {};
+        const municipio = typeof metadatos.municipio === 'string' ? metadatos.municipio : null;
+        const estadoGeografico = typeof metadatos.estado === 'string' ? metadatos.estado : null;
+
         return {
           id: doc.id,
           titulo: doc.titulo,
           descripcion: doc.resumen || '',
           gcpFileName,
           fechaPublicacion: doc.fechaPublicacion || null,
+          numeroGaceta: doc.numeroGaceta || null,
+          municipio,
+          estado: estadoGeografico || doc.estadoLegal || null,
         };
       });
     } catch (error) {
