@@ -7,7 +7,7 @@ import {
   Logger,
 } from '@nestjs/common';
 import { CarpetaInterna, Prisma, SubcarpetaNorma, TemaPrincipal } from '@prisma/client';
-import { Storage } from '@google-cloud/storage';
+import { Storage, StorageOptions } from '@google-cloud/storage';
 import { v4 as uuidv4 } from 'uuid';
 import * as path from 'path';
 import { PrismaService } from '../prisma/prisma.service';
@@ -29,18 +29,20 @@ export class StorageService {
     const keyFilePath = process.env.GCP_KEY_FILE_PATH;
     const bucketName = process.env.GCP_STORAGE_BUCKET_NAME;
 
-    if (!projectId || !keyFilePath || !bucketName) {
+    if (!projectId || !bucketName) {
       throw new Error(
-        'Las variables de entorno GCP_PROJECT_ID, GCP_KEY_FILE_PATH y GCP_STORAGE_BUCKET_NAME son obligatorias.',
+        'Las variables de entorno GCP_PROJECT_ID y GCP_STORAGE_BUCKET_NAME son obligatorias.',
       );
     }
 
     this.bucketName = bucketName;
 
-    this.storage = new Storage({
-      projectId,
-      keyFilename: keyFilePath,
-    });
+    const storageOptions: StorageOptions = { projectId };
+    if (keyFilePath) {
+      storageOptions.keyFilename = keyFilePath;
+    }
+
+    this.storage = new Storage(storageOptions);
   }
 
   /**
@@ -125,7 +127,9 @@ export class StorageService {
         `Error al generar URL firmada: ${message}`,
         error instanceof Error ? error.stack : undefined,
       );
-      throw new InternalServerErrorException(`Error al generar la URL firmada: ${message}`);
+      throw new InternalServerErrorException(
+        'No se pudo generar la URL de previsualización del documento. Contacte al administrador.',
+      );
     }
   }
 

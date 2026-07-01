@@ -8,7 +8,7 @@ import {
   Param,
   Query,
   UseInterceptors,
-  UploadedFile,
+  UploadedFiles,
   Body,
   UseGuards,
 } from '@nestjs/common';
@@ -104,7 +104,7 @@ Ruta Final Resultante: \`tema-principal/derecho-urbanistico/legislacion/nacional
     ]),
   )
   async uploadDocumento(
-    @UploadedFile()
+    @UploadedFiles()
     files: {
       file?: Express.Multer.File[];
       gacetaFile?: Express.Multer.File[];
@@ -130,7 +130,7 @@ Ruta Final Resultante: \`tema-principal/derecho-urbanistico/legislacion/nacional
     ]),
   )
   async reforma(
-    @UploadedFile()
+    @UploadedFiles()
     files: {
       file?: Express.Multer.File[];
       gacetaFile?: Express.Multer.File[];
@@ -167,7 +167,7 @@ Ruta Final Resultante: \`tema-principal/derecho-urbanistico/legislacion/nacional
     ]),
   )
   async uploadBorrador(
-    @UploadedFile()
+    @UploadedFiles()
     files: {
       file?: Express.Multer.File[];
       gacetaFile?: Express.Multer.File[];
@@ -325,7 +325,7 @@ Nota sobre la respuesta (Nuevos campos y Metadatos):
   editar(
     @Param('id') id: string,
     @Body() updateData: UpdateDocumentoDto,
-    @UploadedFile()
+    @UploadedFiles()
     files?: {
       file?: Express.Multer.File[];
       gacetaFile?: Express.Multer.File[];
@@ -351,7 +351,7 @@ Nota sobre la respuesta (Nuevos campos y Metadatos):
   update(
     @Param('id') id: string,
     @Body() updateData: UpdateDocumentoDto,
-    @UploadedFile()
+    @UploadedFiles()
     files?: {
       file?: Express.Multer.File[];
       gacetaFile?: Express.Multer.File[];
