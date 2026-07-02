@@ -62,13 +62,25 @@ export class DocumentosService {
     }
   }
 
-  private mapDocumentoResponse(doc: any) {
+  private mapDocumentoResponse<
+    T extends {
+      metadatos?: any;
+      estado?: any;
+      gacetaPdfUrl?: string | null;
+      numeroGaceta?: string | null;
+    },
+  >(doc: T) {
     if (!doc) return doc;
-    const metadatosObj = typeof doc.metadatos === 'object' && doc.metadatos !== null ? doc.metadatos : {};
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const metadatosObj: Record<string, any> =
+      typeof doc.metadatos === 'object' && doc.metadatos !== null ? doc.metadatos : {};
     return {
       ...doc,
-      estado: metadatosObj.estado ?? doc.estado, // si el frontend necesita el estado regional y colisiona con estado de revision, el frontend deberia usar estadoRegional o el json, pero segun requerimientos 'Estado' y 'Municipio' vienen de metadatos. OJO: hay un campo 'estado' (EstadoDocumento).
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      estado: metadatosObj.estado ?? doc.estado,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       estadoRegional: metadatosObj.estado,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       municipio: metadatosObj.municipio,
       gaceta: doc.gacetaPdfUrl || doc.numeroGaceta || null,
     };
@@ -516,7 +528,13 @@ export class DocumentosService {
       this.prisma.client.documento.count({ where }),
     ]);
 
-    return { items: items.map(doc => this.mapDocumentoResponse(doc)), total, page, limit, totalPages: Math.ceil(total / limit) };
+    return {
+      items: items.map(doc => this.mapDocumentoResponse(doc)),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async findPublic(query: PublicQueryDto) {
@@ -554,7 +572,13 @@ export class DocumentosService {
       this.prisma.client.documento.count({ where }),
     ]);
 
-    return { items: items.map(doc => this.mapDocumentoResponse(doc)), total, page, limit, totalPages: Math.ceil(total / limit) };
+    return {
+      items: items.map(doc => this.mapDocumentoResponse(doc)),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async findSeoByNombreBreve(nombreBreve: string) {

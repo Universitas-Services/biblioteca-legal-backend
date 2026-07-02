@@ -209,8 +209,15 @@ export class AuthService {
     };
 
     const token = this.jwtService.sign(payload, { expiresIn: '15m' });
-    const frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
-    const resetLink = `${frontendUrl}/reset-password?token=${token}`;
+    let frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+    let resetLink: string;
+
+    if (frontendUrl.includes('EL_TOKEN')) {
+      resetLink = frontendUrl.replace('EL_TOKEN', token);
+    } else {
+      frontendUrl = frontendUrl.replace(/\/$/, '');
+      resetLink = `${frontendUrl}/auth/reset-password?token=${token}`;
+    }
 
     await this.mailService.sendPasswordResetEmail(user.email, resetLink);
 
