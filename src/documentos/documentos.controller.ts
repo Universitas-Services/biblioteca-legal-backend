@@ -369,4 +369,21 @@ Nota sobre la respuesta (Nuevos campos y Metadatos):
   softDelete(@Param('id') id: string) {
     return this.documentosService.softDelete(id);
   }
+
+  @Delete('admin/:id/hard-delete')
+  @ApiTags('Admin', 'Documentos')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN)
+  @ApiOperation({
+    summary: 'Eliminar documento físicamente (Hard Delete)',
+    description:
+      'Elimina permanentemente el documento de la base de datos y sus archivos (PDF y Gaceta) del bucket en GCS. Solo accesible para el rol ADMIN.',
+  })
+  @ApiResponse({ status: 200, description: 'Documento eliminado físicamente de forma exitosa.' })
+  @ApiResponse({ status: 403, description: 'Prohibido, requiere rol ADMIN.' })
+  @ApiResponse({ status: 404, description: 'Documento no encontrado.' })
+  hardDelete(@Param('id') id: string) {
+    return this.documentosService.hardDelete(id);
+  }
 }

@@ -716,6 +716,48 @@ export class DocumentosService {
     return { message: 'Documento eliminado de forma pasiva exitosamente' };
   }
 
+  async hardDelete(id: string) {
+    const documento = await this.prisma.client.documento.findUnique({
+      where: { id },
+    });
+
+    if (!documento) {
+      throw new NotFoundException(`Documento con ID ${id} no encontrado.`);
+    }
+
+    if (documento.archivoOriginalUrl) {
+      await this.storage.deleteFile(documento.archivoOriginalUrl);
+    }
+
+    if (documento.gacetaPdfUrl) {
+      await this.storage.deleteFile(documento.gacetaPdfUrl);
+    }
+
+    await this.prisma.client.$transaction([
+      this.prisma.client.auditLog.updateMany({
+        where: { documentoId: id },
+        data: { documentoId: null },
+      }),
+      this.prisma.client.documento.updateMany({
+        where: { reformaAId: id },
+        data: { reformaAId: null },
+      }),
+      this.prisma.client.documento.updateMany({
+        where: { jerarquiaSuperiorId: id },
+        data: { jerarquiaSuperiorId: null },
+      }),
+      this.prisma.client.documento.updateMany({
+        where: { documentoRelacionadoId: id },
+        data: { documentoRelacionadoId: null },
+      }),
+      this.prisma.client.documento.delete({
+        where: { id },
+      }),
+    ]);
+
+    return { message: 'Documento eliminado físicamente (hard delete) exitosamente' };
+  }
+
   async cambiarEstado(id: string, nuevoEstado: EstadoDocumento) {
     const documento = await this.findOne(id);
 
