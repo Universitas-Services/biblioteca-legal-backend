@@ -1,0 +1,12 @@
+[
+  {
+    "origin": [
+      "https://biblioteca.universitas.legal",
+      "https://iusurbano.universitas.legal",
+      "http://localhost:3000"
+    ],
+    "method": ["GET", "HEAD", "OPTIONS"],
+    "responseHeader": ["Content-Type", "Authorization", "Access-Control-Allow-Origin", "Origin", "Accept"],
+    "maxAgeSeconds": 3600
+  }
+]

@@ -61,6 +61,19 @@ export class DocumentosService {
       );
     }
   }
+
+  private mapDocumentoResponse(doc: any) {
+    if (!doc) return doc;
+    const metadatosObj = typeof doc.metadatos === 'object' && doc.metadatos !== null ? doc.metadatos : {};
+    return {
+      ...doc,
+      estado: metadatosObj.estado ?? doc.estado, // si el frontend necesita el estado regional y colisiona con estado de revision, el frontend deberia usar estadoRegional o el json, pero segun requerimientos 'Estado' y 'Municipio' vienen de metadatos. OJO: hay un campo 'estado' (EstadoDocumento).
+      estadoRegional: metadatosObj.estado,
+      municipio: metadatosObj.municipio,
+      gaceta: doc.gacetaPdfUrl || doc.numeroGaceta || null,
+    };
+  }
+
   private async resolverCarpetaDestino(subcarpetaNormaId: string, carpetaInternaId?: string) {
     const subcarpeta = await this.prisma.client.subcarpetaNorma.findFirst({
       where: { id: subcarpetaNormaId, eliminado: false },
@@ -384,11 +397,12 @@ export class DocumentosService {
   }
 
   async findAll() {
-    return this.prisma.client.documento.findMany({
+    const docs = await this.prisma.client.documento.findMany({
       where: { eliminado: false },
       orderBy: { ultimaActualizacion: 'desc' },
-      include: { categorias: true, revisorAsignado: true },
+      include: { categorias: true, revisorAsignado: true, metadata: true },
     });
+    return docs.map(doc => this.mapDocumentoResponse(doc));
   }
 
   async findAdminList(query: AdminDocumentosQueryDto) {
@@ -404,7 +418,7 @@ export class DocumentosService {
       where.notasInternas = { some: {} };
     }
 
-    return this.prisma.client.documento.findMany({
+    const docs = await this.prisma.client.documento.findMany({
       where,
       orderBy: { ultimaActualizacion: 'desc' },
       include: {
@@ -415,12 +429,14 @@ export class DocumentosService {
           take: 1, // Only return the latest note as a preview
           include: { autor: { select: { id: true, nombre: true, role: true } } },
         },
+        metadata: true,
       },
     });
+    return docs.map(doc => this.mapDocumentoResponse(doc));
   }
 
   async findCuradorConNotas(curadorId: string) {
-    return this.prisma.client.documento.findMany({
+    const docs = await this.prisma.client.documento.findMany({
       where: {
         eliminado: false,
         curadorId,
@@ -433,8 +449,10 @@ export class DocumentosService {
           orderBy: { fecha: 'desc' },
           include: { autor: { select: { id: true, nombre: true, role: true } } },
         },
+        metadata: true,
       },
     });
+    return docs.map(doc => this.mapDocumentoResponse(doc));
   }
 
   async findCuradorList(curadorId: string, query: CuradorDocumentosQueryDto) {
@@ -492,12 +510,13 @@ export class DocumentosService {
         include: {
           categorias: { select: { id: true, nombre: true } },
           revisorAsignado: { select: { id: true, nombre: true, apellido: true } },
+          metadata: true,
         },
       }),
       this.prisma.client.documento.count({ where }),
     ]);
 
-    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+    return { items: items.map(doc => this.mapDocumentoResponse(doc)), total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async findPublic(query: PublicQueryDto) {
@@ -530,12 +549,12 @@ export class DocumentosService {
         skip,
         take: limit,
         orderBy: { ultimaActualizacion: 'desc' },
-        include: { categorias: true },
+        include: { categorias: true, metadata: true },
       }),
       this.prisma.client.documento.count({ where }),
     ]);
 
-    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+    return { items: items.map(doc => this.mapDocumentoResponse(doc)), total, page, limit, totalPages: Math.ceil(total / limit) };
   }
 
   async findSeoByNombreBreve(nombreBreve: string) {
@@ -582,6 +601,7 @@ export class DocumentosService {
         curador: true,
         matrizA: true,
         matrizB: true,
+        metadata: true,
       },
     });
 
@@ -589,7 +609,7 @@ export class DocumentosService {
       throw new NotFoundException(`Documento con ID ${id} no encontrado o fue eliminado.`);
     }
 
-    return documento;
+    return this.mapDocumentoResponse(documento);
   }
 
   async registrarVisor(userId: string, documentoId: string) {

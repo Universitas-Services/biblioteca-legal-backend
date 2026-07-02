@@ -15,7 +15,11 @@ async function bootstrap() {
   );
 
   app.enableCors({
-    origin: ['https://biblioteca.universitas.legal', 'http://localhost:3000'],
+    origin: [
+      'https://biblioteca.universitas.legal',
+      'https://iusurbano.universitas.legal',
+      'http://localhost:3000',
+    ],
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
     allowedHeaders: ['Authorization', 'Content-Type', 'Accept'],
     credentials: false,
