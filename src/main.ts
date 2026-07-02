@@ -14,7 +14,12 @@ async function bootstrap() {
     }),
   );
 
-  app.enableCors();
+  app.enableCors({
+    origin: ['https://biblioteca.universitas.legal', 'http://localhost:3000'],
+    methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Authorization', 'Content-Type', 'Accept'],
+    credentials: false,
+  });
 
   const config = new DocumentBuilder()
     .setTitle('Biblioteca Legal API')
