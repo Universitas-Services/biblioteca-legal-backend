@@ -12,6 +12,8 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
+import { ForgotPasswordDto } from './dto/forgot-password.dto';
+import { ResetPasswordDto } from './dto/reset-password.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { Roles } from './decorators/roles.decorator';
@@ -152,6 +154,29 @@ Cuando un Admin crea un usuario staff, ese usuario recibe una contraseña tempor
   })
   async changePassword(@Body() body: ChangePasswordDto, @CurrentUser() user: JwtPayloadUser) {
     return this.authService.changePassword(user.sub, body.currentPassword, body.newPassword);
+  }
+
+  @Post('forgot-password')
+  @ApiOperation({
+    summary: 'Solicitar recuperación de contraseña',
+    description: 'Envía un correo con un enlace de recuperación si el email existe.',
+  })
+  @ApiBody({ type: ForgotPasswordDto })
+  @ApiResponse({ status: 200, description: 'Proceso de recuperación iniciado exitosamente.' })
+  async forgotPassword(@Body() body: ForgotPasswordDto) {
+    return this.authService.forgotPassword(body.email);
+  }
+
+  @Post('reset-password')
+  @ApiOperation({
+    summary: 'Restablecer contraseña',
+    description: 'Permite establecer una nueva contraseña usando el token enviado por correo.',
+  })
+  @ApiBody({ type: ResetPasswordDto })
+  @ApiResponse({ status: 200, description: 'Contraseña actualizada correctamente.' })
+  @ApiResponse({ status: 400, description: 'Token inválido o expirado.' })
+  async resetPassword(@Body() body: ResetPasswordDto) {
+    return this.authService.resetPassword(body.token, body.newPassword);
   }
 
   @Post('logout')

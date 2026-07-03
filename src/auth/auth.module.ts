@@ -5,6 +5,7 @@ import { ConfigModule, ConfigService } from '@nestjs/config';
 import { AuthService } from './auth.service';
 import { AuthController } from './auth.controller';
 import { PrismaModule } from '../prisma/prisma.module';
+import { MailModule } from '../mail/mail.module';
 import { JwtStrategy } from './strategies/jwt.strategy';
 import { MuroCompletoGuard } from './guards/muro-completo.guard';
 import { RequirePasswordChangedGuard } from './guards/require-password-changed.guard';
@@ -12,6 +13,7 @@ import { RequirePasswordChangedGuard } from './guards/require-password-changed.g
 @Module({
   imports: [
     PrismaModule,
+    MailModule,
     PassportModule,
     JwtModule.registerAsync({
       imports: [ConfigModule],

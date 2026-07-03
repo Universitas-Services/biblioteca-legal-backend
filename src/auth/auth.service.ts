@@ -6,7 +6,9 @@ import {
   BadRequestException,
 } from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
+import { ConfigService } from '@nestjs/config';
 import { PrismaService } from '../prisma/prisma.service';
+import { MailService } from '../mail/mail.service';
 import * as bcrypt from 'bcrypt';
 import { Role, User, PrismaClient } from '.prisma/client';
 
@@ -17,6 +19,8 @@ export class AuthService {
   constructor(
     private prisma: PrismaService,
     private jwtService: JwtService,
+    private configService: ConfigService,
+    private mailService: MailService,
   ) {
     this.prismaClient = prisma.client;
   }
@@ -177,5 +181,97 @@ export class AuthService {
       message: 'Sesión finalizada correctamente',
       userId: user.id,
     };
+  }
+
+  /**
+   * Genera un token de reseteo y envía un correo al usuario.
+   */
+  async forgotPassword(email: string) {
+    const user = await this.prismaClient.user.findUnique({
+      where: { email },
+      select: { id: true, email: true, tokenVersion: true },
+    });
+
+    if (!user) {
+      // Devolvemos success igual para no revelar si el email existe o no
+      return {
+        message:
+          'Si el correo está registrado, recibirás instrucciones para restablecer tu contraseña.',
+      };
+    }
+
+    // Generar un JWT temporal restringido al reseteo de contraseña
+    const payload = {
+      sub: user.id,
+      email: user.email,
+      tv: user.tokenVersion,
+      scope: 'password-reset',
+    };
+
+    const token = this.jwtService.sign(payload, { expiresIn: '15m' });
+    let frontendUrl = this.configService.get<string>('FRONTEND_URL') || 'http://localhost:3000';
+    let resetLink: string;
+
+    if (frontendUrl.includes('EL_TOKEN')) {
+      resetLink = frontendUrl.replace('EL_TOKEN', token);
+    } else {
+      frontendUrl = frontendUrl.replace(/\/$/, '');
+      resetLink = `${frontendUrl}/auth/reset-password?token=${token}`;
+    }
+
+    await this.mailService.sendPasswordResetEmail(user.email, resetLink);
+
+    return {
+      message:
+        'Si el correo está registrado, recibirás instrucciones para restablecer tu contraseña.',
+    };
+  }
+
+  /**
+   * Verifica el token de reseteo y actualiza la contraseña.
+   */
+  async resetPassword(token: string, newPassword: string) {
+    try {
+      const payload = this.jwtService.verify<{
+        sub: string;
+        email: string;
+        tv: number;
+        scope: string;
+      }>(token);
+
+      if (payload.scope !== 'password-reset') {
+        throw new BadRequestException('Token inválido para esta operación');
+      }
+
+      const user = await this.prismaClient.user.findUnique({
+        where: { id: payload.sub },
+      });
+
+      if (!user) {
+        throw new NotFoundException('Usuario no encontrado');
+      }
+
+      if (user.tokenVersion !== payload.tv) {
+        throw new BadRequestException('El token ha expirado o ya fue utilizado');
+      }
+
+      const hashedPassword = await bcrypt.hash(newPassword, 10);
+
+      await this.prismaClient.user.update({
+        where: { id: user.id },
+        data: {
+          password: hashedPassword,
+          tokenVersion: { increment: 1 }, // Invalidamos el token usado y sesiones activas
+          requirePasswordChange: false, // Por si acaso estaba forzado
+        },
+      });
+
+      return { message: 'Contraseña actualizada correctamente' };
+    } catch (error) {
+      if (error instanceof BadRequestException || error instanceof NotFoundException) {
+        throw error;
+      }
+      throw new BadRequestException('Token inválido o expirado');
+    }
   }
 }

@@ -178,6 +178,43 @@ export class StorageService {
   }
 
   /**
+   * Elimina un archivo permanentemente de Google Cloud Storage.
+   *
+   * @param gcsUri - URI nativa original (ej: `gs://bucket/pendientes/archivo.pdf`).
+   */
+  async deleteFile(gcsUri: string): Promise<void> {
+    try {
+      const prefix = `gs://${this.bucketName}/`;
+
+      if (!gcsUri.startsWith(prefix)) {
+        this.logger.warn(`La URI proporcionada para eliminar no pertenece al bucket: ${gcsUri}`);
+        return;
+      }
+
+      const filePath = gcsUri.slice(prefix.length);
+      const bucket = this.storage.bucket(this.bucketName);
+      const file = bucket.file(filePath);
+
+      const [exists] = await file.exists();
+      if (exists) {
+        await file.delete();
+        this.logger.log(`Archivo eliminado de GCS: ${filePath}`);
+      } else {
+        this.logger.warn(`El archivo no existe en GCS, se omitió la eliminación: ${filePath}`);
+      }
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : 'Error desconocido';
+      this.logger.error(
+        `Error al eliminar archivo en GCS: ${message}`,
+        error instanceof Error ? error.stack : undefined,
+      );
+      throw new InternalServerErrorException(
+        `Error al eliminar el archivo en Google Cloud Storage: ${message}`,
+      );
+    }
+  }
+
+  /**
    * Crea una carpeta simulada en Google Cloud Storage.
    *
    * En GCS no existen carpetas reales; se simula la jerarquía creando un objeto

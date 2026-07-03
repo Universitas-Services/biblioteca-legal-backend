@@ -61,6 +61,31 @@ export class DocumentosService {
       );
     }
   }
+
+  private mapDocumentoResponse<
+    T extends {
+      metadatos?: any;
+      estado?: any;
+      gacetaPdfUrl?: string | null;
+      numeroGaceta?: string | null;
+    },
+  >(doc: T) {
+    if (!doc) return doc;
+    // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+    const metadatosObj: Record<string, any> =
+      typeof doc.metadatos === 'object' && doc.metadatos !== null ? doc.metadatos : {};
+    return {
+      ...doc,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      estado: metadatosObj.estado ?? doc.estado,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      estadoRegional: metadatosObj.estado,
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      municipio: metadatosObj.municipio,
+      gaceta: doc.gacetaPdfUrl || doc.numeroGaceta || null,
+    };
+  }
+
   private async resolverCarpetaDestino(subcarpetaNormaId: string, carpetaInternaId?: string) {
     const subcarpeta = await this.prisma.client.subcarpetaNorma.findFirst({
       where: { id: subcarpetaNormaId, eliminado: false },
@@ -384,11 +409,12 @@ export class DocumentosService {
   }
 
   async findAll() {
-    return this.prisma.client.documento.findMany({
+    const docs = await this.prisma.client.documento.findMany({
       where: { eliminado: false },
       orderBy: { ultimaActualizacion: 'desc' },
-      include: { categorias: true, revisorAsignado: true },
+      include: { categorias: true, revisorAsignado: true, metadata: true },
     });
+    return docs.map(doc => this.mapDocumentoResponse(doc));
   }
 
   async findAdminList(query: AdminDocumentosQueryDto) {
@@ -404,7 +430,7 @@ export class DocumentosService {
       where.notasInternas = { some: {} };
     }
 
-    return this.prisma.client.documento.findMany({
+    const docs = await this.prisma.client.documento.findMany({
       where,
       orderBy: { ultimaActualizacion: 'desc' },
       include: {
@@ -415,12 +441,14 @@ export class DocumentosService {
           take: 1, // Only return the latest note as a preview
           include: { autor: { select: { id: true, nombre: true, role: true } } },
         },
+        metadata: true,
       },
     });
+    return docs.map(doc => this.mapDocumentoResponse(doc));
   }
 
   async findCuradorConNotas(curadorId: string) {
-    return this.prisma.client.documento.findMany({
+    const docs = await this.prisma.client.documento.findMany({
       where: {
         eliminado: false,
         curadorId,
@@ -433,8 +461,10 @@ export class DocumentosService {
           orderBy: { fecha: 'desc' },
           include: { autor: { select: { id: true, nombre: true, role: true } } },
         },
+        metadata: true,
       },
     });
+    return docs.map(doc => this.mapDocumentoResponse(doc));
   }
 
   async findCuradorList(curadorId: string, query: CuradorDocumentosQueryDto) {
@@ -492,12 +522,19 @@ export class DocumentosService {
         include: {
           categorias: { select: { id: true, nombre: true } },
           revisorAsignado: { select: { id: true, nombre: true, apellido: true } },
+          metadata: true,
         },
       }),
       this.prisma.client.documento.count({ where }),
     ]);
 
-    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+    return {
+      items: items.map(doc => this.mapDocumentoResponse(doc)),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async findPublic(query: PublicQueryDto) {
@@ -530,12 +567,18 @@ export class DocumentosService {
         skip,
         take: limit,
         orderBy: { ultimaActualizacion: 'desc' },
-        include: { categorias: true },
+        include: { categorias: true, metadata: true },
       }),
       this.prisma.client.documento.count({ where }),
     ]);
 
-    return { items, total, page, limit, totalPages: Math.ceil(total / limit) };
+    return {
+      items: items.map(doc => this.mapDocumentoResponse(doc)),
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async findSeoByNombreBreve(nombreBreve: string) {
@@ -582,6 +625,7 @@ export class DocumentosService {
         curador: true,
         matrizA: true,
         matrizB: true,
+        metadata: true,
       },
     });
 
@@ -589,7 +633,7 @@ export class DocumentosService {
       throw new NotFoundException(`Documento con ID ${id} no encontrado o fue eliminado.`);
     }
 
-    return documento;
+    return this.mapDocumentoResponse(documento);
   }
 
   async registrarVisor(userId: string, documentoId: string) {
@@ -714,6 +758,48 @@ export class DocumentosService {
     });
 
     return { message: 'Documento eliminado de forma pasiva exitosamente' };
+  }
+
+  async hardDelete(id: string) {
+    const documento = await this.prisma.client.documento.findUnique({
+      where: { id },
+    });
+
+    if (!documento) {
+      throw new NotFoundException(`Documento con ID ${id} no encontrado.`);
+    }
+
+    if (documento.archivoOriginalUrl) {
+      await this.storage.deleteFile(documento.archivoOriginalUrl);
+    }
+
+    if (documento.gacetaPdfUrl) {
+      await this.storage.deleteFile(documento.gacetaPdfUrl);
+    }
+
+    await this.prisma.client.$transaction([
+      this.prisma.client.auditLog.updateMany({
+        where: { documentoId: id },
+        data: { documentoId: null },
+      }),
+      this.prisma.client.documento.updateMany({
+        where: { reformaAId: id },
+        data: { reformaAId: null },
+      }),
+      this.prisma.client.documento.updateMany({
+        where: { jerarquiaSuperiorId: id },
+        data: { jerarquiaSuperiorId: null },
+      }),
+      this.prisma.client.documento.updateMany({
+        where: { documentoRelacionadoId: id },
+        data: { documentoRelacionadoId: null },
+      }),
+      this.prisma.client.documento.delete({
+        where: { id },
+      }),
+    ]);
+
+    return { message: 'Documento eliminado físicamente (hard delete) exitosamente' };
   }
 
   async cambiarEstado(id: string, nuevoEstado: EstadoDocumento) {
