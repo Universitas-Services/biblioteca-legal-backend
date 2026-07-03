@@ -74,14 +74,22 @@ export class DocumentosService {
     // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
     const metadatosObj: Record<string, any> =
       typeof doc.metadatos === 'object' && doc.metadatos !== null ? doc.metadatos : {};
+
+    const dynamicFields: Record<string, any> = {};
+    if (metadatosObj.estado !== undefined && metadatosObj.estado !== null) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      dynamicFields.estadoRegional = metadatosObj.estado;
+    }
+    if (metadatosObj.municipio !== undefined && metadatosObj.municipio !== null) {
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
+      dynamicFields.municipio = metadatosObj.municipio;
+    }
+
     return {
       ...doc,
       // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
       estado: metadatosObj.estado ?? doc.estado,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      estadoRegional: metadatosObj.estado,
-      // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-      municipio: metadatosObj.municipio,
+      ...dynamicFields,
       gaceta: doc.gacetaPdfUrl || doc.numeroGaceta || null,
     };
   }
@@ -418,6 +426,10 @@ export class DocumentosService {
   }
 
   async findAdminList(query: AdminDocumentosQueryDto) {
+    const page = query.page ?? 1;
+    const limit = Math.min(Math.max(query.limit ?? 10, 1), 50);
+    const skip = (Math.max(page, 1) - 1) * limit;
+
     const where: Prisma.DocumentoWhereInput = {
       eliminado: false,
     };
@@ -430,21 +442,54 @@ export class DocumentosService {
       where.notasInternas = { some: {} };
     }
 
-    const docs = await this.prisma.client.documento.findMany({
-      where,
-      orderBy: { ultimaActualizacion: 'desc' },
-      include: {
-        curador: { select: { id: true, email: true, nombre: true, apellido: true } },
-        _count: { select: { notasInternas: true } },
-        notasInternas: {
-          orderBy: { fecha: 'desc' },
-          take: 1, // Only return the latest note as a preview
-          include: { autor: { select: { id: true, nombre: true, role: true } } },
+    if (query.estado) {
+      switch (query.estado) {
+        case CuradorFiltroEstado.PUBLICADOS:
+          where.estado = EstadoDocumento.PUBLICADO;
+          break;
+        case CuradorFiltroEstado.EN_REVISION:
+          where.estado = EstadoDocumento.PENDIENTE_REVISION;
+          break;
+        case CuradorFiltroEstado.BORRADORES:
+          where.estado = EstadoDocumento.BORRADOR;
+          break;
+        case CuradorFiltroEstado.RECHAZADOS:
+          where.estado = EstadoDocumento.RECHAZADO;
+          break;
+        case CuradorFiltroEstado.TODOS:
+        default:
+          break;
+      }
+    }
+
+    const [docs, total] = await Promise.all([
+      this.prisma.client.documento.findMany({
+        where,
+        skip,
+        take: limit,
+        orderBy: { ultimaActualizacion: 'desc' },
+        include: {
+          curador: { select: { id: true, email: true, nombre: true, apellido: true } },
+          _count: { select: { notasInternas: true } },
+          notasInternas: {
+            orderBy: { fecha: 'desc' },
+            take: 1, // Only return the latest note as a preview
+            include: { autor: { select: { id: true, nombre: true, role: true } } },
+          },
+          metadata: true,
+          categorias: { select: { id: true, nombre: true } },
         },
-        metadata: true,
-      },
-    });
-    return docs.map(doc => this.mapDocumentoResponse(doc));
+      }),
+      this.prisma.client.documento.count({ where }),
+    ]);
+
+    return {
+      items: docs.map(doc => this.mapDocumentoResponse(doc)),
+      total,
+      page: Math.max(page, 1),
+      limit,
+      totalPages: Math.ceil(total / limit),
+    };
   }
 
   async findCuradorConNotas(curadorId: string) {
@@ -626,6 +671,17 @@ export class DocumentosService {
         matrizA: true,
         matrizB: true,
         metadata: true,
+        subcarpetaNorma: {
+          include: {
+            temaPrincipal: { select: { id: true, nombre: true, slug: true } },
+          },
+        },
+        carpetaInterna: true,
+        notasInternas: {
+          orderBy: { fecha: 'desc' },
+          include: { autor: { select: { id: true, nombre: true, apellido: true, role: true } } },
+        },
+        _count: { select: { notasInternas: true } },
       },
     });
 
@@ -824,7 +880,8 @@ export class DocumentosService {
           gacetaPdfUrl: newGacetaUrl,
         },
       });
-      this.emitEstadoCambio(id, documento.estado, nuevoEstado);
+
+      this.emitEstadoCambio(id, documento.estado as EstadoDocumento, nuevoEstado);
       return;
     }
 
@@ -832,7 +889,8 @@ export class DocumentosService {
       where: { id },
       data: { estado: nuevoEstado },
     });
-    this.emitEstadoCambio(id, documento.estado, nuevoEstado);
+
+    this.emitEstadoCambio(id, documento.estado as EstadoDocumento, nuevoEstado);
     return updated;
   }
 }
