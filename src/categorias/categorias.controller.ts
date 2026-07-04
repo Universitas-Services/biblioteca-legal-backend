@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Param, Post, Put, UseGuards } from '@nestjs/common';
+import { Body, Controller, Get, Param, Patch, Post, Put, UseGuards } from '@nestjs/common';
 import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { Role } from '@prisma/client';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
@@ -55,6 +55,24 @@ export class CategoriasController {
   @ApiOperation({ summary: 'Aprobar categoría sugerida' })
   aprobar(@Param('id') id: string) {
     return this.categoriasService.aprobar(id);
+  }
+
+  @Patch('rechazar/:id')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.REVISOR, Role.ADMIN)
+  @ApiOperation({ summary: 'Rechazar categoría sugerida' })
+  rechazar(@Param('id') id: string) {
+    return this.categoriasService.rechazar(id);
+  }
+
+  @Get('pendientes')
+  @ApiBearerAuth()
+  @UseGuards(JwtAuthGuard, RolesGuard)
+  @Roles(Role.ADMIN, Role.REVISOR)
+  @ApiOperation({ summary: 'Listar categorías pendientes/sugeridas (ADMIN/REVISOR)' })
+  findPendientes() {
+    return this.categoriasService.findPendientes();
   }
 
   @Get()

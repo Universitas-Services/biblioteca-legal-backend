@@ -16,6 +16,7 @@ import { CloudinaryModule } from './cloudinary/cloudinary.module';
 import { EspecialidadModule } from './common/especialidad/especialidad.module';
 import { MetadatasModule } from './metadatas/metadatas.module';
 import { BibliotecaLegalModule } from './biblioteca-legal/biblioteca-legal.module';
+import { EtiquetasModule } from './etiquetas/etiquetas.module';
 
 @Module({
   imports: [
@@ -34,6 +35,7 @@ import { BibliotecaLegalModule } from './biblioteca-legal/biblioteca-legal.modul
     CloudinaryModule,
     MetadatasModule,
     BibliotecaLegalModule,
+    EtiquetasModule,
   ],
   controllers: [AppController],
   providers: [AppService],

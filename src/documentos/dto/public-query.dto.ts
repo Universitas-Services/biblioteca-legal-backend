@@ -23,6 +23,11 @@ export class PublicQueryDto {
   categoriaId?: string;
 
   @ApiPropertyOptional()
+  @IsUUID()
+  @IsOptional()
+  etiquetaId?: string;
+
+  @ApiPropertyOptional()
   @IsString()
   @IsOptional()
   enteEmisor?: string;

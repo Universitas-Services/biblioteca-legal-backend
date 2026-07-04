@@ -8,6 +8,8 @@ import { AsignacionRevisorService } from './services/asignacion-revisor.service'
 import { CategoriasService } from '../categorias/categorias.service';
 import { EspecialidadService } from '../common/especialidad/especialidad.service';
 
+import { EtiquetasService } from '../etiquetas/etiquetas.service';
+
 describe('DocumentosService', () => {
   let service: DocumentosService;
 
@@ -28,6 +30,10 @@ describe('DocumentosService', () => {
         { provide: ValidarDuplicidadService, useValue: { validar: jest.fn() } },
         { provide: AsignacionRevisorService, useValue: { asignarPorTema: jest.fn() } },
         { provide: CategoriasService, useValue: { validarIdsAprobadas: jest.fn() } },
+        {
+          provide: EtiquetasService,
+          useValue: { procesarEtiquetasPorNombres: jest.fn().mockResolvedValue([]) },
+        },
         {
           provide: EspecialidadService,
           useValue: { assertCuradorPuedeSubirTema: jest.fn().mockResolvedValue(undefined) },

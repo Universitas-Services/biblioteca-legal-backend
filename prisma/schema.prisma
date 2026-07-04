@@ -29,9 +29,10 @@ enum EstadoLegal {
   DEROGADA
 }
 
-enum EstadoCategoria {
+enum EstadoAprobacion {
   SUGERIDA
   APROBADA
+  RECHAZADA
 }
 
 enum Profesion {
@@ -154,6 +155,7 @@ model User {
   documentosCurados   Documento[]         @relation("CuradorDocumentos")
   documentosRevisados Documento[]         @relation("RevisorDocumentos")
   categoriasSugeridas Categoria[]
+  etiquetasSugeridas  Etiqueta[]          @relation("EtiquetasSugeridas")
 }
 
 model Documento {
@@ -185,7 +187,7 @@ model Documento {
   
 
   temaPrincipal     String?
-  etiquetas         String[]
+  etiquetas         Etiqueta[]
   tipoNorma         String?
   enteEmisor        String?
   fechaPublicacion  String?
@@ -232,13 +234,24 @@ model Documento {
 }
 
 model Categoria {
-  id            String          @id @default(uuid())
-  nombre        String          @unique
-  estado        EstadoCategoria @default(SUGERIDA)
+  id            String           @id @default(uuid())
+  nombre        String           @unique
+  estado        EstadoAprobacion @default(SUGERIDA)
   sugeridoPorId String?
-  sugeridoPor   User?           @relation(fields: [sugeridoPorId], references: [id])
-  createdAt     DateTime        @default(now())
-  updatedAt     DateTime        @updatedAt
+  sugeridoPor   User?            @relation(fields: [sugeridoPorId], references: [id])
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+  documentos    Documento[]
+}
+
+model Etiqueta {
+  id            String           @id @default(uuid())
+  nombre        String           @unique
+  estado        EstadoAprobacion @default(SUGERIDA)
+  sugeridoPorId String?
+  sugeridoPor   User?            @relation("EtiquetasSugeridas", fields: [sugeridoPorId], references: [id])
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
   documentos    Documento[]
 }
 
