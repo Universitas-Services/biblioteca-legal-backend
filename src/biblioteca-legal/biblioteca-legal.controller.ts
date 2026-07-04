@@ -9,7 +9,7 @@ import {
   ApiQuery,
 } from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service';
-import { EstadoDocumento } from '@prisma/client';
+import { EstadoDocumento, Prisma } from '@prisma/client';
 import { ApiKeyGuard } from './guards/api-key.guard';
 
 @ApiTags('Biblioteca Legal Externa')
@@ -35,21 +35,53 @@ export class BibliotecaLegalController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Lista de documentos devuelta exitosamente en formato paginado.',
+    description:
+      'Lista de documentos devuelta exitosamente en formato paginado con toda la información (relaciones incluidas).',
     schema: {
       example: {
         items: [
           {
             id: 'uuid-o-id-unico-del-documento',
             titulo: 'Plan de Desarrollo Urbano 2024',
+            tituloIntegro: 'Plan de Desarrollo Urbano de la Ciudad 2024',
             descripcion:
-              'Documento que establece los lineamientos principales para el desarrollo urbanístico de la ciudad.',
+              'Documento que establece los lineamientos principales para el desarrollo urbanístico.',
+            resumen:
+              'Documento que establece los lineamientos principales para el desarrollo urbanístico.',
             gcpFileName:
               'tema-principal/derecho-urbanistico/legislacion/ley-ordinaria/plan-2024.pdf',
+            archivoOriginalUrl:
+              'gs://biblioteca-legal/tema-principal/derecho-urbanistico/legislacion/ley-ordinaria/plan-2024.pdf',
             fechaPublicacion: '2024-05-12T10:00:00Z',
             numeroGaceta: 'G.O. 42.123',
             municipio: 'Chacao',
             estado: 'Miranda',
+            estadoLegal: null,
+            tipoNorma: 'Ley Ordinaria',
+            enteEmisor: 'Concejo Municipal',
+            pais: 'Venezuela',
+            curadorId: 'uuid-curador',
+            curador: {
+              id: 'uuid-curador',
+              email: 'curador@example.com',
+              nombre: 'Juan',
+              apellido: 'Pérez',
+            },
+            categorias: [
+              {
+                id: 'uuid-categoria',
+                nombre: 'Derecho Administrativo',
+              },
+            ],
+            etiquetas: [],
+            notasInternas: [],
+            metadatos: {
+              municipio: 'Chacao',
+              estado: 'Miranda',
+            },
+            _count: {
+              notasInternas: 0,
+            },
           },
         ],
         total: 100,
@@ -81,7 +113,7 @@ export class BibliotecaLegalController {
     const skip = (pageNumber - 1) * limitNumber;
 
     try {
-      const whereCondition = {
+      const whereCondition: Prisma.DocumentoWhereInput = {
         temaPrincipal: 'Derecho Urbanístico',
         estado: EstadoDocumento.PUBLICADO,
         eliminado: false,
@@ -94,15 +126,17 @@ export class BibliotecaLegalController {
           skip,
           take: limitNumber,
           orderBy: { createdAt: 'desc' },
-          select: {
-            id: true,
-            titulo: true,
-            resumen: true,
-            archivoOriginalUrl: true,
-            fechaPublicacion: true,
-            numeroGaceta: true,
-            estadoLegal: true,
-            metadatos: true,
+          include: {
+            curador: { select: { id: true, email: true, nombre: true, apellido: true } },
+            _count: { select: { notasInternas: true } },
+            notasInternas: {
+              orderBy: { fecha: 'desc' },
+              take: 1,
+              include: { autor: { select: { id: true, nombre: true, role: true } } },
+            },
+            metadata: true,
+            categorias: { select: { id: true, nombre: true } },
+            etiquetas: { select: { id: true, nombre: true } },
           },
         }),
       ]);
@@ -130,6 +164,7 @@ export class BibliotecaLegalController {
         const estadoGeografico = typeof metadatos.estado === 'string' ? metadatos.estado : null;
 
         return {
+          ...doc,
           id: doc.id,
           titulo: doc.titulo,
           descripcion: doc.resumen || '',
@@ -137,7 +172,7 @@ export class BibliotecaLegalController {
           fechaPublicacion: doc.fechaPublicacion || null,
           numeroGaceta: doc.numeroGaceta || null,
           municipio,
-          estado: estadoGeografico || doc.estadoLegal || null,
+          estado: estadoGeografico || doc.estadoLegal || doc.estado || null,
         };
       });
 
