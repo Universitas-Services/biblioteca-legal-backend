@@ -1,6 +1,13 @@
-import { Controller, Get, UseGuards, InternalServerErrorException } from '@nestjs/common';
+import { Controller, Get, UseGuards, InternalServerErrorException, Query } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { ApiTags, ApiOperation, ApiResponse, ApiSecurity, ApiHeader } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiSecurity,
+  ApiHeader,
+  ApiQuery,
+} from '@nestjs/swagger';
 import { PrismaService } from '../prisma/prisma.service';
 import { EstadoDocumento } from '@prisma/client';
 import { ApiKeyGuard } from './guards/api-key.guard';
@@ -28,47 +35,77 @@ export class BibliotecaLegalController {
   })
   @ApiResponse({
     status: 200,
-    description: 'Lista de documentos devuelta exitosamente.',
+    description: 'Lista de documentos devuelta exitosamente en formato paginado.',
     schema: {
-      example: [
-        {
-          id: 'uuid-o-id-unico-del-documento',
-          titulo: 'Plan de Desarrollo Urbano 2024',
-          descripcion:
-            'Documento que establece los lineamientos principales para el desarrollo urbanístico de la ciudad.',
-          gcpFileName: 'tema-principal/derecho-urbanistico/legislacion/ley-ordinaria/plan-2024.pdf',
-          fechaPublicacion: '2024-05-12T10:00:00Z',
-          numeroGaceta: 'G.O. 42.123',
-          municipio: 'Chacao',
-          estado: 'Miranda',
-        },
-      ],
+      example: {
+        items: [
+          {
+            id: 'uuid-o-id-unico-del-documento',
+            titulo: 'Plan de Desarrollo Urbano 2024',
+            descripcion:
+              'Documento que establece los lineamientos principales para el desarrollo urbanístico de la ciudad.',
+            gcpFileName:
+              'tema-principal/derecho-urbanistico/legislacion/ley-ordinaria/plan-2024.pdf',
+            fechaPublicacion: '2024-05-12T10:00:00Z',
+            numeroGaceta: 'G.O. 42.123',
+            municipio: 'Chacao',
+            estado: 'Miranda',
+          },
+        ],
+        total: 100,
+        page: 1,
+        limit: 50,
+        totalPages: 2,
+      },
     },
   })
   @ApiResponse({
     status: 401,
     description: 'No autorizado. Falta el header x-api-key o es inválido.',
   })
-  async getUrbanismoDocuments() {
+  @ApiQuery({
+    name: 'page',
+    required: false,
+    type: Number,
+    description: 'Número de página (default: 1)',
+  })
+  @ApiQuery({
+    name: 'limit',
+    required: false,
+    type: Number,
+    description: 'Cantidad de registros por página (default: 50, max: 100)',
+  })
+  async getUrbanismoDocuments(@Query('page') page?: string, @Query('limit') limit?: string) {
+    const pageNumber = Math.max(1, parseInt(page || '1', 10));
+    const limitNumber = Math.min(100, Math.max(1, parseInt(limit || '50', 10)));
+    const skip = (pageNumber - 1) * limitNumber;
+
     try {
-      // Filtrar documentos por el tema principal y que estén publicados y no eliminados
-      const documentos = await this.prisma.client.documento.findMany({
-        where: {
-          temaPrincipal: 'Derecho Urbanístico',
-          estado: EstadoDocumento.PUBLICADO,
-          eliminado: false,
-        },
-        select: {
-          id: true,
-          titulo: true,
-          resumen: true,
-          archivoOriginalUrl: true,
-          fechaPublicacion: true,
-          numeroGaceta: true,
-          estadoLegal: true,
-          metadatos: true,
-        },
-      });
+      const whereCondition = {
+        temaPrincipal: 'Derecho Urbanístico',
+        estado: EstadoDocumento.PUBLICADO,
+        eliminado: false,
+      };
+
+      const [total, documentos] = await Promise.all([
+        this.prisma.client.documento.count({ where: whereCondition }),
+        this.prisma.client.documento.findMany({
+          where: whereCondition,
+          skip,
+          take: limitNumber,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            titulo: true,
+            resumen: true,
+            archivoOriginalUrl: true,
+            fechaPublicacion: true,
+            numeroGaceta: true,
+            estadoLegal: true,
+            metadatos: true,
+          },
+        }),
+      ]);
 
       const bucketName = this.configService.get<string>('GCP_STORAGE_BUCKET_NAME');
       if (!bucketName) {
@@ -78,7 +115,7 @@ export class BibliotecaLegalController {
       const prefix = `gs://${bucketName}/`;
 
       // Mapear los resultados al formato requerido
-      return documentos.map(doc => {
+      const items = documentos.map(doc => {
         let gcpFileName = '';
         if (doc.archivoOriginalUrl && doc.archivoOriginalUrl.startsWith(prefix)) {
           gcpFileName = doc.archivoOriginalUrl.slice(prefix.length);
@@ -103,6 +140,14 @@ export class BibliotecaLegalController {
           estado: estadoGeografico || doc.estadoLegal || null,
         };
       });
+
+      return {
+        items,
+        total,
+        page: pageNumber,
+        limit: limitNumber,
+        totalPages: Math.ceil(total / limitNumber),
+      };
     } catch (error) {
       if (error instanceof InternalServerErrorException) {
         throw error;

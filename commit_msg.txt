@@ -1,0 +1,6 @@
+feat(etiquetas): Implementar flujo de Etiquetas
+
+Añadir CRUD completo para Etiquetas, implementando el módulo y controladores.
+Actualizar DocumentosService y CategoriasService para integrar la resolución y vinculación (M:N) de etiquetas por nombres (strings) en la subida de documentos, así como el flujo de aprobación/rechazo.
+
+Co-Authored-By: Claude <noreply@anthropic.com>

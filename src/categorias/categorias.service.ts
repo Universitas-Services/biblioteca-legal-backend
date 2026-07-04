@@ -1,5 +1,5 @@
 import { ConflictException, Injectable, NotFoundException } from '@nestjs/common';
-import { EstadoCategoria } from '@prisma/client';
+import { EstadoAprobacion } from '@prisma/client';
 import { PrismaService } from '../prisma/prisma.service';
 import { SugerirCategoriaDto } from './dto/sugerir-categoria.dto';
 import { CreateCategoriaAdminDto } from './dto/create-categoria-admin.dto';
@@ -24,7 +24,7 @@ export class CategoriasService {
     return this.prisma.client.categoria.create({
       data: {
         nombre: dto.nombre.trim(),
-        estado: EstadoCategoria.APROBADA,
+        estado: EstadoAprobacion.APROBADA,
       },
     });
   }
@@ -45,7 +45,7 @@ export class CategoriasService {
     return this.prisma.client.categoria.create({
       data: {
         nombre: dto.nombre.trim(),
-        estado: EstadoCategoria.SUGERIDA,
+        estado: EstadoAprobacion.SUGERIDA,
         sugeridoPorId,
       },
     });
@@ -59,13 +59,40 @@ export class CategoriasService {
 
     return this.prisma.client.categoria.update({
       where: { id },
-      data: { estado: EstadoCategoria.APROBADA },
+      data: { estado: EstadoAprobacion.APROBADA },
+    });
+  }
+
+  async rechazar(id: string) {
+    const categoria = await this.prisma.client.categoria.findUnique({ where: { id } });
+    if (!categoria) {
+      throw new NotFoundException('Categoría no encontrada');
+    }
+
+    return this.prisma.client.categoria.update({
+      where: { id },
+      data: {
+        estado: EstadoAprobacion.RECHAZADA,
+        documentos: {
+          set: [], // Desvincula los documentos asociados
+        },
+      },
+    });
+  }
+
+  async findPendientes() {
+    return this.prisma.client.categoria.findMany({
+      where: { estado: EstadoAprobacion.SUGERIDA },
+      orderBy: { nombre: 'asc' },
+      include: {
+        sugeridoPor: { select: { id: true, email: true, role: true } },
+      },
     });
   }
 
   async findAprobadas() {
     return this.prisma.client.categoria.findMany({
-      where: { estado: EstadoCategoria.APROBADA },
+      where: { estado: EstadoAprobacion.APROBADA },
       orderBy: { nombre: 'asc' },
     });
   }
@@ -75,7 +102,7 @@ export class CategoriasService {
       throw new ConflictException('Debe incluir al menos una categoría aprobada');
     }
     const categorias = await this.prisma.client.categoria.findMany({
-      where: { id: { in: ids }, estado: EstadoCategoria.APROBADA },
+      where: { id: { in: ids }, estado: EstadoAprobacion.APROBADA },
     });
     if (categorias.length !== ids.length) {
       throw new ConflictException('Una o más categorías no existen o no están aprobadas');

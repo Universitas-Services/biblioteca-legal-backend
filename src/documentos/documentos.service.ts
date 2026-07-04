@@ -18,6 +18,7 @@ import { PublicarBorradorDto } from './dto/publicar-borrador.dto';
 import { ValidarDuplicidadService } from './services/validar-duplicidad.service';
 import { AsignacionRevisorService } from './services/asignacion-revisor.service';
 import { CategoriasService } from '../categorias/categorias.service';
+import { EtiquetasService } from '../etiquetas/etiquetas.service';
 import {
   DOCUMENTO_ESTADO_CAMBIADO,
   DocumentoEstadoCambiadoEvent,
@@ -36,6 +37,7 @@ export class DocumentosService {
     private validarDuplicidad: ValidarDuplicidadService,
     private asignacionRevisor: AsignacionRevisorService,
     private categoriasService: CategoriasService,
+    private etiquetasService: EtiquetasService,
     private eventEmitter: EventEmitter2,
     private especialidad: EspecialidadService,
   ) {}
@@ -163,6 +165,11 @@ export class DocumentosService {
     }
     const revisorAsignadoId = await this.asignacionRevisor.asignarPorTema(destino.temaPrincipal);
 
+    const etiquetaIds = await this.etiquetasService.procesarEtiquetasPorNombres(
+      data.etiquetas ?? [],
+      curadorId,
+    );
+
     const nuevoDoc = await this.prisma.client.documento.create({
       data: {
         titulo: data.titulo,
@@ -174,7 +181,7 @@ export class DocumentosService {
         ocrHabilitado: data.ocrHabilitado ?? false,
         nombreBreve: data.nombreBreve,
         temaPrincipal: destino.temaPrincipal,
-        etiquetas: data.etiquetas ?? [],
+        etiquetas: { connect: etiquetaIds.map(id => ({ id })) },
         tipoNorma: destino.tipoNorma,
         subcarpetaNormaId: destino.subcarpetaNormaId,
         carpetaInternaId: destino.carpetaInternaId,
@@ -195,7 +202,7 @@ export class DocumentosService {
           ? { matrizB: { connect: data.matrizBIds.map(id => ({ id })) } }
           : {}),
       },
-      include: { categorias: true, revisorAsignado: true },
+      include: { categorias: true, revisorAsignado: true, etiquetas: true },
     });
 
     return { message: 'Carga exitosa', documentoId: nuevoDoc.id, documento: nuevoDoc };
@@ -222,6 +229,19 @@ export class DocumentosService {
     let gacetaCloudUrl: string | null = null;
     if (gacetaFile) {
       gacetaCloudUrl = await this.storage.uploadDocument(gacetaFile, 'pendientes');
+    }
+
+    let etiquetasData = {};
+    if (data.etiquetas !== undefined) {
+      const etiquetaIds = await this.etiquetasService.procesarEtiquetasPorNombres(
+        data.etiquetas,
+        curadorId,
+      );
+      etiquetasData = { connect: etiquetaIds.map(id => ({ id })) };
+    } else {
+      etiquetasData = {
+        connect: leyVieja.etiquetas ? leyVieja.etiquetas.map(e => ({ id: e.id })) : [],
+      };
     }
 
     const nuevaLey = await this.prisma.client.documento.create({
@@ -256,6 +276,7 @@ export class DocumentosService {
             ? data.categoriaIds.map(id => ({ id }))
             : leyVieja.categorias.map(c => ({ id: c.id })),
         },
+        etiquetas: etiquetasData,
         matrizAId: data.matrizAId ?? leyVieja.matrizAId,
       },
     });
@@ -318,6 +339,11 @@ export class DocumentosService {
       gacetaCloudUrl = await this.storage.uploadDocument(gacetaFile, 'borradores');
     }
 
+    const etiquetaIds = await this.etiquetasService.procesarEtiquetasPorNombres(
+      data.etiquetas ?? [],
+      curadorId,
+    );
+
     const nuevoDoc = await this.prisma.client.documento.create({
       data: {
         titulo: data.titulo,
@@ -336,7 +362,7 @@ export class DocumentosService {
         fechaPublicacion: data.fechaPublicacion,
         numeroGaceta: data.numeroGaceta,
         resumen: data.resumen,
-        etiquetas: data.etiquetas ?? [],
+        etiquetas: { connect: etiquetaIds.map(id => ({ id })) },
         palabrasClave: data.palabrasClave ?? [],
         pais: data.pais,
         metadatos: (data.metadatos as Prisma.InputJsonValue) ?? Prisma.JsonNull,
@@ -400,7 +426,7 @@ export class DocumentosService {
         revisorAsignadoId,
         categorias: { connect: data.categoriaIds.map(id => ({ id })) },
       },
-      include: { categorias: true, revisorAsignado: true },
+      include: { categorias: true, revisorAsignado: true, etiquetas: true },
     });
 
     this.emitEstadoCambio(
@@ -420,7 +446,7 @@ export class DocumentosService {
     const docs = await this.prisma.client.documento.findMany({
       where: { eliminado: false },
       orderBy: { ultimaActualizacion: 'desc' },
-      include: { categorias: true, revisorAsignado: true, metadata: true },
+      include: { categorias: true, revisorAsignado: true, metadata: true, etiquetas: true },
     });
     return docs.map(doc => this.mapDocumentoResponse(doc));
   }
@@ -478,6 +504,7 @@ export class DocumentosService {
           },
           metadata: true,
           categorias: { select: { id: true, nombre: true } },
+          etiquetas: { select: { id: true, nombre: true } },
         },
       }),
       this.prisma.client.documento.count({ where }),
@@ -566,6 +593,7 @@ export class DocumentosService {
         orderBy: { ultimaActualizacion: 'desc' },
         include: {
           categorias: { select: { id: true, nombre: true } },
+          etiquetas: { select: { id: true, nombre: true } },
           revisorAsignado: { select: { id: true, nombre: true, apellido: true } },
           metadata: true,
         },
@@ -595,6 +623,9 @@ export class DocumentosService {
     if (query.categoriaId) {
       where.categorias = { some: { id: query.categoriaId } };
     }
+    if (query.etiquetaId) {
+      where.etiquetas = { some: { id: query.etiquetaId } };
+    }
     if (query.enteEmisor) {
       where.enteEmisor = { contains: query.enteEmisor, mode: 'insensitive' };
     }
@@ -612,7 +643,7 @@ export class DocumentosService {
         skip,
         take: limit,
         orderBy: { ultimaActualizacion: 'desc' },
-        include: { categorias: true, metadata: true },
+        include: { categorias: true, metadata: true, etiquetas: true },
       }),
       this.prisma.client.documento.count({ where }),
     ]);
@@ -645,10 +676,10 @@ export class DocumentosService {
         numeroGaceta: true,
         resumen: true,
         palabrasClave: true,
+        categorias: { select: { id: true, nombre: true } },
         etiquetas: true,
         estado: true,
         ultimaActualizacion: true,
-        categorias: { select: { id: true, nombre: true } },
       },
     });
 
@@ -666,6 +697,7 @@ export class DocumentosService {
         reformaA: true,
         reformas: true,
         categorias: true,
+        etiquetas: true,
         revisorAsignado: true,
         curador: true,
         matrizA: true,
@@ -741,6 +773,7 @@ export class DocumentosService {
       subcarpetaNormaId,
       carpetaInternaId,
       metadatos,
+      etiquetas,
       ...simpleData
     } = updateData;
 
@@ -780,6 +813,14 @@ export class DocumentosService {
       data.categorias = { set: categoriaIds.map(cid => ({ id: cid })) };
     }
 
+    if (etiquetas !== undefined) {
+      const etiquetaIds = await this.etiquetasService.procesarEtiquetasPorNombres(
+        etiquetas,
+        documento.curadorId ?? '',
+      );
+      data.etiquetas = { set: etiquetaIds.map(id => ({ id })) };
+    }
+
     // MatrizB: set reemplaza todas las relaciones actuales
     if (matrizBIds !== undefined) {
       data.matrizB = { set: matrizBIds.map(id => ({ id })) };
@@ -788,7 +829,7 @@ export class DocumentosService {
     const updatedDoc = await this.prisma.client.documento.update({
       where: { id },
       data,
-      include: { categorias: true, matrizA: true, matrizB: true },
+      include: { categorias: true, matrizA: true, matrizB: true, etiquetas: true },
     });
 
     if (documento.estado === EstadoDocumento.RECHAZADO) {
