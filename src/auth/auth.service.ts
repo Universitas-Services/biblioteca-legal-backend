@@ -25,6 +25,25 @@ export class AuthService {
     this.prismaClient = prisma.client;
   }
 
+  private generateAuthTokens(userId: string, email: string, role: string, tokenVersion: number) {
+    const payload = {
+      sub: userId,
+      email,
+      role,
+      tv: tokenVersion,
+    };
+
+    const access_token = this.jwtService.sign(payload);
+
+    // Refresh token uses a separate secret and longer expiration
+    const refresh_token = this.jwtService.sign(payload, {
+      secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+      expiresIn: '7d',
+    });
+
+    return { access_token, refresh_token };
+  }
+
   async register(email: string, pass: string) {
     // 1. Verificamos si el usuario ya existe
     const userExists = await this.prismaClient.user.findUnique({
@@ -88,15 +107,10 @@ export class AuthService {
       };
     }
 
-    // 4. Login normal: generar JWT de acceso completo
-    const payload = {
-      sub: user.id,
-      email: user.email,
-      role: user.role,
-      tv: user.tokenVersion,
-    };
+    // 4. Login normal: generar JWT de acceso completo y refresh token
+    const tokens = this.generateAuthTokens(user.id, user.email, user.role, user.tokenVersion);
     return {
-      access_token: this.jwtService.sign(payload),
+      ...tokens,
       mustChangePassword: false,
     };
   }
@@ -142,17 +156,17 @@ export class AuthService {
       select: { id: true, email: true, role: true, tokenVersion: true },
     });
 
-    // Emitir un JWT de acceso completo directamente (el usuario no tiene que volver a loguearse)
-    const payload = {
-      sub: updated.id,
-      email: updated.email,
-      role: updated.role,
-      tv: updated.tokenVersion,
-    };
+    // Emitir JWTs de acceso completo directamente (el usuario no tiene que volver a loguearse)
+    const tokens = this.generateAuthTokens(
+      updated.id,
+      updated.email,
+      updated.role,
+      updated.tokenVersion,
+    );
 
     return {
       message: 'Contraseña actualizada exitosamente',
-      access_token: this.jwtService.sign(payload),
+      ...tokens,
     };
   }
 
@@ -272,6 +286,36 @@ export class AuthService {
         throw error;
       }
       throw new BadRequestException('Token inválido o expirado');
+    }
+  }
+
+  /**
+   * Valida el Refresh Token y emite un nuevo par de tokens.
+   */
+  async refreshTokens(refreshToken: string) {
+    try {
+      const payload = this.jwtService.verify<{
+        sub: string;
+        email: string;
+        role: string;
+        tv: number;
+      }>(refreshToken, {
+        secret: this.configService.getOrThrow<string>('JWT_REFRESH_SECRET'),
+      });
+
+      const user = await this.prismaClient.user.findUnique({
+        where: { id: payload.sub },
+        select: { id: true, email: true, role: true, tokenVersion: true },
+      });
+
+      // Si el tokenVersion de la BD no coincide con el del token, la sesión fue revocada
+      if (!user || user.tokenVersion !== payload.tv) {
+        throw new UnauthorizedException('Refresh token revocado o inválido');
+      }
+
+      return this.generateAuthTokens(user.id, user.email, user.role, user.tokenVersion);
+    } catch {
+      throw new UnauthorizedException('Refresh token inválido o expirado');
     }
   }
 }

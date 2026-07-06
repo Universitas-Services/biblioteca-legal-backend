@@ -14,6 +14,7 @@ import { LoginDto } from './dto/login.dto';
 import { ChangePasswordDto } from './dto/change-password.dto';
 import { ForgotPasswordDto } from './dto/forgot-password.dto';
 import { ResetPasswordDto } from './dto/reset-password.dto';
+import { RefreshTokenDto } from './dto/refresh-token.dto';
 import { JwtAuthGuard } from './guards/jwt-auth.guard';
 import { RolesGuard } from './guards/roles.guard';
 import { Roles } from './decorators/roles.decorator';
@@ -27,6 +28,12 @@ class LoginNormalResponse {
     description: 'JWT de acceso completo',
   })
   access_token: string;
+
+  @ApiProperty({
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    description: 'JWT de refresco (larga duración)',
+  })
+  refresh_token: string;
 
   @ApiProperty({ example: false, description: 'Siempre false en el login normal' })
   mustChangePassword: boolean;
@@ -56,6 +63,12 @@ class ChangePasswordResponse {
     description: 'Nuevo JWT de acceso completo. Reemplaza el token restringido anterior.',
   })
   access_token: string;
+
+  @ApiProperty({
+    example: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...',
+    description: 'Nuevo JWT de refresco.',
+  })
+  refresh_token: string;
 }
 
 // ─── Controller ──────────────────────────────────────────────────────────────
@@ -177,6 +190,22 @@ Cuando un Admin crea un usuario staff, ese usuario recibe una contraseña tempor
   @ApiResponse({ status: 400, description: 'Token inválido o expirado.' })
   async resetPassword(@Body() body: ResetPasswordDto) {
     return this.authService.resetPassword(body.token, body.newPassword);
+  }
+
+  @Post('refresh')
+  @ApiOperation({
+    summary: 'Refrescar token de acceso',
+    description:
+      'Utiliza el refresh_token de larga duración para obtener un nuevo par de access_token y refresh_token.',
+  })
+  @ApiBody({ type: RefreshTokenDto })
+  @ApiResponse({
+    status: 200,
+    description: 'Nuevos tokens generados.',
+  })
+  @ApiResponse({ status: 401, description: 'Refresh token inválido, expirado o revocado.' })
+  async refreshTokens(@Body() body: RefreshTokenDto) {
+    return this.authService.refreshTokens(body.refreshToken);
   }
 
   @Post('logout')
