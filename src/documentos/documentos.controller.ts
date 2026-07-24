@@ -79,11 +79,11 @@ Incluye los campos: \`metadatos\` (JSON dinámico), \`ocrHabilitado\`, \`pais\`,
   @ApiBearerAuth()
   @ApiOperation({
     summary: 'Subir documento (Curador)',
-    description: `Sube uno o dos archivos (Documento PDF y Gaceta PDF) a la ruta provisional /pendientes/ en GCS y crea el registro en estado PENDIENTE_REVISION. 
+    description: `Sube uno o dos archivos (Documento PDF y Gaceta PDF) directamente a la ruta final en GCS y crea el registro en estado PUBLICADO (sin pasar por revisión).
 El sistema enruta el documento y deduce el Tema basándose en los IDs provistos.
 
 ### Enrutamiento Recursivo hacia GCS (Niveles)
-Cuando el documento es publicado, el sistema construye la ruta final resolviendo el árbol de carpetas de forma automática:
+Al subir, el sistema construye la ruta final resolviendo el árbol de carpetas de forma automática:
 - **Nivel 1 (Tema Principal):** Auto-derivado (ej. "Derecho Urbanístico")
 - **Nivel 2 (Subcarpeta Norma):** Según \`subcarpetaNormaId\` (ej. "Legislación")
 - **Nivel 3 (Jurisdicción):** Padre de la Carpeta Interna (ej. "Nacional")
@@ -119,7 +119,11 @@ Ruta Final Resultante: \`tema-principal/derecho-urbanistico/legislacion/nacional
 
   @Post('reforma')
   @ApiBearerAuth()
-  @ApiOperation({ summary: 'Registrar reforma de ley existente' })
+  @ApiOperation({
+    summary: 'Registrar reforma de ley existente',
+    description:
+      'Sube la reforma directamente a la ruta final en GCS y la deja en estado PUBLICADO (sin pasar por revisión). Marca la ley anterior como REFORMADA.',
+  })
   @ApiConsumes('multipart/form-data')
   @UseGuards(JwtAuthGuard, RolesGuard)
   @Roles(Role.CURADOR, Role.ADMIN)
