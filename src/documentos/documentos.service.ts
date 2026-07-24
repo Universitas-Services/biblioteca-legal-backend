@@ -158,12 +158,12 @@ export class DocumentosService {
     );
     await this.especialidad.assertCuradorPuedeSubirTema(curadorId, destino.temaPrincipal);
 
-    const cloudUrl = await this.storage.uploadDocument(file, 'pendientes');
+    // Publicación directa: sube a la ruta final del tema (sin /pendientes/ ni revisión).
+    const cloudUrl = await this.storage.uploadDocument(file, destino.gcsPath);
     let gacetaCloudUrl: string | null = null;
     if (gacetaFile) {
-      gacetaCloudUrl = await this.storage.uploadDocument(gacetaFile, 'pendientes');
+      gacetaCloudUrl = await this.storage.uploadDocument(gacetaFile, destino.gcsPath);
     }
-    const revisorAsignadoId = await this.asignacionRevisor.asignarPorTema(destino.temaPrincipal);
 
     const etiquetaIds = await this.etiquetasService.procesarEtiquetasPorNombres(
       data.etiquetas ?? [],
@@ -176,7 +176,7 @@ export class DocumentosService {
         tituloIntegro: data.tituloIntegro,
         archivoOriginalUrl: cloudUrl,
         gacetaPdfUrl: gacetaCloudUrl,
-        estado: EstadoDocumento.PENDIENTE_REVISION,
+        estado: EstadoDocumento.PUBLICADO,
         soloLecturaImagen: data.soloLecturaImagen ?? false,
         ocrHabilitado: data.ocrHabilitado ?? false,
         nombreBreve: data.nombreBreve,
@@ -195,17 +195,20 @@ export class DocumentosService {
         jerarquiaSuperiorId: data.jerarquiaSuperiorId,
         documentoRelacionadoId: data.documentoRelacionadoId,
         curadorId,
-        revisorAsignadoId,
         categorias: { connect: data.categoriaIds.map(id => ({ id })) },
         ...(data.matrizAId ? { matrizAId: data.matrizAId } : {}),
         ...(data.matrizBIds?.length
           ? { matrizB: { connect: data.matrizBIds.map(id => ({ id })) } }
           : {}),
       },
-      include: { categorias: true, revisorAsignado: true, etiquetas: true },
+      include: { categorias: true, etiquetas: true },
     });
 
-    return { message: 'Carga exitosa', documentoId: nuevoDoc.id, documento: nuevoDoc };
+    return {
+      message: 'Documento publicado exitosamente',
+      documentoId: nuevoDoc.id,
+      documento: nuevoDoc,
+    };
   }
 
   async procesarReforma(
@@ -224,11 +227,13 @@ export class DocumentosService {
       data.subcarpetaNormaId,
       data.carpetaInternaId,
     );
+    await this.especialidad.assertCuradorPuedeSubirTema(curadorId, destino.temaPrincipal);
 
-    const cloudUrl = await this.storage.uploadDocument(file, 'pendientes');
+    // Publicación directa: sube a la ruta final del tema (sin /pendientes/ ni revisión).
+    const cloudUrl = await this.storage.uploadDocument(file, destino.gcsPath);
     let gacetaCloudUrl: string | null = null;
     if (gacetaFile) {
-      gacetaCloudUrl = await this.storage.uploadDocument(gacetaFile, 'pendientes');
+      gacetaCloudUrl = await this.storage.uploadDocument(gacetaFile, destino.gcsPath);
     }
 
     let etiquetasData = {};
@@ -250,7 +255,7 @@ export class DocumentosService {
         tituloIntegro: data.tituloIntegro,
         archivoOriginalUrl: cloudUrl,
         gacetaPdfUrl: gacetaCloudUrl,
-        estado: EstadoDocumento.PENDIENTE_REVISION,
+        estado: EstadoDocumento.PUBLICADO,
         soloLecturaImagen: data.soloLecturaImagen ?? false,
         ocrHabilitado: data.ocrHabilitado ?? false,
         nombreBreve: data.nombreBreve,
@@ -270,7 +275,6 @@ export class DocumentosService {
         esReforma: true,
         reformaAId: leyViejaId,
         curadorId,
-        revisorAsignadoId: leyVieja.revisorAsignadoId,
         categorias: {
           connect: data.categoriaIds?.length
             ? data.categoriaIds.map(id => ({ id }))
@@ -289,7 +293,7 @@ export class DocumentosService {
     this.emitEstadoLegalCambio(leyViejaId, estadoAnterior, EstadoLegal.REFORMADA);
 
     return {
-      message: 'Reforma registrada exitosamente',
+      message: 'Reforma publicada exitosamente',
       documentoId: nuevaLey.id,
       documento: nuevaLey,
     };
