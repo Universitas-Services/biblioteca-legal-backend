@@ -65,3 +65,4 @@ agente-manual-contrataciones-*.json
 #contexto
 /contexto
 *.contexto
+backups/
